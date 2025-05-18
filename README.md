@@ -2,6 +2,10 @@
 
 A novel benchmark derived directly from research papers and mathematical forums that assesses LLMs' abilities on authentic mathematical tasks.
 
+We provide a [HuggingFace dataset](https://huggingface.co/datasets/ethz-spylab/RealMath), which includes 633 samples from *math.arXiv*, 111 samples from *cs.arXiv*, and 542 samples from *Math Stack Exchange*.
+
+
+
 ![description](teaser.png)
 ## Motivation
 
