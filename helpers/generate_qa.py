@@ -9,7 +9,7 @@ It works by:
 3. Filtering based on quality criteria and saving to a new dataset
 
 Key features:
-- Uses GPT-4o or custom LLM to generate QA pairs
+- Uses o3-mini or custom LLM to generate QA pairs
 - Enforces strict criteria for question-answer quality
 - Outputs a structured dataset of QA pairs with links to original theorems
 
@@ -53,109 +53,7 @@ def setup_random_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
 
-def validate_latex(content):
-    """
-    Validate if LaTeX content can be rendered correctly.
-    
-    Args:
-        content (str): LaTeX content to validate
-        
-    Returns:
-        tuple: (is_valid, error_message)
-    """
-    # Create a temporary LaTeX document to test the content
-    latex_document = f"""\\documentclass{{article}}
-    \\usepackage{{amsmath, amssymb, enumerate, amsfonts, mathrsfs, mathtools, logicproof}}
-    \\usepackage{{geometry}}
-    \\usepackage{{hyperref}}
-    \\usepackage{{xcolor}}
-    \\usepackage{{fancyhdr}}
-    \\usepackage{{tcolorbox}}
-    \\begin{{document}}
-    
-    {content}
-    
-    \\end{{document}}
-    """
-    
-    # Try to compile the LaTeX document
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create the LaTeX file
-        tex_file_path = os.path.join(temp_dir, "output.tex")
-        with open(tex_file_path, "w", encoding="utf-8") as f:
-            f.write(latex_document)
-        
-        # Try to compile the LaTeX file
-        try:
-            result = subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", tex_file_path],
-                capture_output=True,
-                cwd=temp_dir
-            )
-            
-            if result.returncode != 0:
-                # If compilation failed, return the error message
-                return False, result.stderr.decode('utf-8', errors='replace')
-            
-            return True, ""
-            
-        except Exception as e:
-            return False, str(e)
 
-def fix_latex_formatting(client, content, error_message=""):
-    """
-    Fix LaTeX formatting issues.
-    
-    Args:
-        client: OpenAI client
-        content (str): LaTeX content to fix
-        error_message (str): Error message from LaTeX compilation
-        
-    Returns:
-        str: Fixed LaTeX content
-    """
-    system_prompt = r"""You are an expert in LaTeX formatting. Your task is to fix formatting issues in LaTeX content 
-    so it can be properly rendered. Focus only on fixing LaTeX syntax errors, not content.
-    
-    Common LaTeX formatting issues to fix:
-    1. Unescaped special characters (e.g., $ in text, % in text)
-    2. Missing or mismatched delimiters ($, \[, \], etc.)
-    3. Undefined commands or environments
-    4. Improper nesting of environments
-    5. Malformed mathematical expressions
-    
-    Only use standard LaTeX packages: amsmath, amssymb, enumerate, amsfonts, mathrsfs, mathtools, logicproof.
-    Make sure all mathematical formulas are enclosed in $ or $$ or \[ \] properly.
-    
-    Return the fixed content.
-    """
-    
-    user_prompt = f"""Please fix the LaTeX formatting issues in the following content:
-    
-    CONTENT:
-    {content}
-    
-    ERROR MESSAGE (if any):
-    {error_message}
-    
-    Return only the fixed content without any explanations.
-    """
-    
-    try:
-        response = client.chat.completions.create(
-            model="o3-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-        )
-        
-        fixed_content = response.choices[0].message.content.strip()
-        return fixed_content
-        
-    except Exception as e:
-        console.print(f"[bold red]Error fixing LaTeX: {e}[/bold red]")
-        return content
 
 class QAGenerator:
     """
@@ -235,39 +133,7 @@ class QAGenerator:
                 
                 # Validate the response
                 if all(key in result for key in default_result.keys()) and result['is_good_qa'] == 'true':
-                    # for quick testing, we skip LaTeX validation
-                    validate_latex = False
-                    if validate_latex:
-                        # Validate and fix LaTeX formatting for question and answer
-                        question = result['question']
-                        answer = result['answer']
-                        # Validate question LaTeX
-                        question_valid, question_error = validate_latex(question)
-                        if not question_valid:
-                            console.print(f"[yellow]Question LaTeX has formatting issues. Attempting to fix...[/yellow]")
-                            question = fix_latex_formatting(self.client, question, question_error)
-                            question_valid, _ = validate_latex(question)
-                    
-                        # Validate answer LaTeX
-                        answer_valid, answer_error = validate_latex(answer)
-                        if not answer_valid:
-                            console.print(f"[yellow]Answer LaTeX has formatting issues. Attempting to fix...[/yellow]")
-                            answer = fix_latex_formatting(self.client, answer, answer_error)
-                            answer_valid, _ = validate_latex(answer)
-                        
-                        # Only accept if both question and answer have valid LaTeX
-                        if question_valid and answer_valid:
-                            result['question'] = question
-                            result['answer'] = answer
-                            break
-                        elif iteration > 3:
-                            # After 3 attempts, just continue with what we have
-                            result['question'] = question
-                            result['answer'] = answer
-                            console.print(f"[yellow]Warning: After {iteration} attempts, LaTeX validation still shows issues. Proceeding anyway.[/yellow]")
-                            break
-                    else:
-                        break
+                    break
                 if iteration > 5:
                     console.print(f"[bold red]Failed to return good QA pair after {iteration} attempts[/bold red]")
                     return default_result
@@ -462,7 +328,7 @@ def filter_trivial_samples(dataset):
             try:
                 # Call the LLM to evaluate the sample
                 response = client.chat.completions.create(
-                    model="o3-mini",
+                    model="o3-mini-2025-01-31",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -559,19 +425,15 @@ def main():
         output_path=args.output,
         sample_theorems=args.sample_theorems
     )
-    import pdb; pdb.set_trace()
     # Filter trivial samples if requested
     if args.filter_trivial:
-        # dataset = load_from_disk(args.input)
         console.print("[yellow]Filtering trivial samples from the dataset...[/yellow]")
         dataset = filter_trivial_samples(dataset)
         
         # Save the filtered dataset
-        filtered_output_path = f"{args.output}_filtered"
-        dataset.save_to_disk(filtered_output_path)
-        console.print(f"[green]Filtered QA pairs dataset saved to {filtered_output_path}[/green]")
+        dataset.save_to_disk(args.output)
+        console.print(f"[green]Filtered QA pairs dataset saved to {args.output}[/green]")
     
-    console.print(f"[bold]QA pairs dataset saved to {args.output}[/bold]")
 
 if __name__ == "__main__":
     main() 
