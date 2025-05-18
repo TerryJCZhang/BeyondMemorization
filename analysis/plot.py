@@ -180,7 +180,7 @@ ARXIV_CATEGORY_NAMES = {
 }
 
 
-
+# fig 8
 def analyze_papers(file_name=None, paper_links=None, bad_theorems=None, stats_math_arxiv=None, totals_math_arxiv=None, stats_cs_arxiv=None, totals_cs_arxiv=None):
     
     def prepare_data(data, total, type='math'):
@@ -1313,21 +1313,23 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # fig 1, teaser figure
-    # plot_model_release_date_math_arxiv_hardest()
+    plot_model_release_date_math_arxiv_hardest()
     
     
     # fig 4, 
-    # plot_model_accuracy_by_difficulty()
+    plot_model_accuracy_by_difficulty()
     
     # fig 5
-    # plot_combined_category_cutoff()
+    plot_combined_category_cutoff()
     
     
     # fig 6
-    # visualize_error_categories()
+    visualize_error_categories()
+    
+    # fig 8
+    analyze_papers()
     
     # fig 10
-    # plot_fine_tuning_models()
+    plot_fine_tuning_models()
     
 
-    analyze_papers()
