@@ -993,7 +993,7 @@ def plot_model_release_date_math_arxiv_hardest():
         labelspacing=1.5
     )
 
-    plt.savefig("teaser.pdf", dpi=300, bbox_inches='tight')
+    plt.savefig("teaser.png", dpi=300, bbox_inches='tight')
     plt.close()
 
 
