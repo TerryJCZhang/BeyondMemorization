@@ -2,12 +2,35 @@
 
 A novel benchmark derived directly from research papers and mathematical forums that assesses LLMs' abilities on authentic mathematical tasks.
 
+
+
 We provide a [HuggingFace dataset](https://huggingface.co/datasets/ethz-spylab/RealMath), which includes 633 samples from *math.arXiv*, 111 samples from *cs.arXiv*, and 542 samples from *Math Stack Exchange*.
 
-
-
 ![description](teaser.png)
-## Motivation
+
+
+## Motivatation
+
+We aim to address the following question:
+
+**How effective are large language models as assistants for practicing mathematicians today?**
+
+To explore this, our benchmark is designed with the following criteria in mind:
+
+- **Real-world application focus**  
+  Content is sourced from authentic mathematical research to reflect real-world use cases.
+
+- **Automated verification**  
+  Samples are designed to be easy to verify programmatically for scalable and reliable evaluation.
+
+- **Continuous acquisition**  
+  The benchmark is refreshable and designed to avoid dataset contamination over time.
+
+
+
+
+
+
 
 In this work, we present **RealMath**:
 
