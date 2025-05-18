@@ -94,8 +94,6 @@ OPENAI_MODELS = {
     "o4-mini": "o4-mini-2025-04-16", 
     "gpt-4o-mini": "gpt-4o-mini-2024-07-18",
     "o3": "o3-2025-04-16",
-    # "gpt-4o-mini-ft": "ft:gpt-4o-mini-2024-07-18:eth-zurich-florian-tramer-lab:math-arxiv:BU1QAVtm",
-    "gpt-4o-mini-ft": "ft:gpt-4o-mini-2024-07-18:eth-zurich-florian-tramer-lab::BUkNhf0o"
 }
 
 ANTHROPIC_MODELS = {
@@ -318,7 +316,11 @@ class MathQAEvaluator:
         try:
             response = self.anthropic_client.messages.create(
                 model=model_name,
-                max_tokens=4000,
+                max_tokens=20000,
+                thinking={
+                    "type": "enabled",
+                    "budget_tokens": 16000
+                },
                 messages=[
                     {"role": "user", "content": user_content}
                 ],
@@ -384,11 +386,6 @@ class MathQAEvaluator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                # stream=True,
-                # extra_headers={
-                #     "HTTP-Referer": "https://math-benchmark-eval.com",
-                #     "X-Title": "Math Benchmark Evaluation"
-                # }
             )
             
             return response.choices[0].message.content
@@ -605,32 +602,32 @@ class MathQAEvaluator:
         final_answer = answer_data
                 
         system_prompt = """You are an expert mathematician tasked with evaluating the correctness of an answer to a mathematical question.
-        
+
         Compare the generated answer to the ground truth answer and determine whether the generated answer is mathematically correct
         and equivalent to the ground truth.
-        
+
         Please be very strict and rigorous in your evaluation, mark the answer as incorrect even if it is 80% or 90% correct.
         Ensure the generated answer can be directly rendered in standard LaTeX without requiring custom command definitions.
         Be precise and focus on mathematical correctness, not formatting or style differences.
         Your evaluation should be fair and consider that the same mathematical content can be expressed in different ways."""
-        
+
         user_prompt = f"""QUESTION:
         {question}
-        
+
         GROUND TRUTH ANSWER:
         {ground_truth}
-        
+
         GENERATED ANSWER:
         {final_answer}
-        
+
         Carefully evaluate whether the generated answer is mathematically correct 
         and equivalent to the ground truth. Your response should only contain a JSON object with the following fields:
         {{
-          "is_correct": boolean,
-          "explanation": "A concise explanation of why the answer is correct or incorrect, in a clean LaTeX format"
+            "is_correct": boolean,
+            "explanation": "A concise explanation of why the answer is correct or incorrect, in a clean LaTeX format"
         }}
         where is_correct is true if the answer is mathematically correct and equivalent to the ground truth, and false if it isn't."""
-        
+                
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
