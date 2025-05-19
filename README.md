@@ -88,6 +88,8 @@ python eval_math.py --model o4-mini --dataset $OUTPUT_PATH/qa_pairs --output $OU
 
 python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH/qa_pairs --output $OUTPUT_PATH/results   &
 
+python eval_cp.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH/qa_pairs --use_thinking --parallel 10 --output $OUTPUT_PATH/results &
+
 # Wait for both parallel processes to complete
 wait
 
