@@ -1,5 +1,14 @@
 # RealMath Benchmark
 
+<div align="center">
+
+#### [📄 Paper](https://arxiv.org/abs/2505.12575)  |  [🤗 RealMath](https://huggingface.co/datasets/ethz-spylab/realmath) 
+</div>
+
+This is the official code for [RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics](https://arxiv.org/abs/2505.12575) by Jie Zhang, Cezara Petrui, Kristina Nikolić, Florian Tramèr.
+
+
+
 A novel benchmark derived directly from research papers and mathematical forums that assesses LLMs' abilities on authentic mathematical tasks.
 
 
@@ -95,6 +104,21 @@ wait
 
 echo "Done!"
 ```
+
+# Cite
+If you use this code/dataset in your research, please cite the following paper:
+```bib
+@misc{zhang2025realmathcontinuousbenchmarkevaluating,
+      title={RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics}, 
+      author={Jie Zhang and Cezara Petrui and Kristina Nikolić and Florian Tramèr},
+      year={2025},
+      eprint={2505.12575},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2505.12575}, 
+}
+```
+
 
 
 
