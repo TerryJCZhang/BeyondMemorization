@@ -1,4 +1,4 @@
-# RealMath Benchmark
+# PioneerScience: Research-Level Scientific Benchmark from Real-World Research Paper
 
 <div align="center">
 
@@ -6,10 +6,6 @@
 </div>
 
 This is the official code for [RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics](https://arxiv.org/abs/2505.12575) by Jie Zhang, Cezara Petrui, Kristina Nikolić, Florian Tramèr.
-
-
-
-A novel benchmark derived directly from research papers and mathematical forums that assesses LLMs' abilities on authentic mathematical tasks.
 
 
 
