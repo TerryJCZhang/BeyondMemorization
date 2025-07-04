@@ -2,7 +2,7 @@
 """
 Question-Answer Generator: Generate High-Quality QA Pairs from Mathematics Theorems
 
-This script processes a dataset of mathematical theorems to generate high-quality question-answer pairs.
+This script processes a dataset of theorems to generate high-quality question-answer pairs.
 It works by:
 1. Loading a dataset of mathematically significant theorems
 2. For each theorem, using an LLM to generate a question-answer pair
@@ -273,14 +273,14 @@ def filter_trivial_samples(dataset):
     non_trivial_count = 0
     
     # System prompt for detecting trivial samples
-    system_prompt = """You are an expert mathematics educator tasked with evaluating the quality of mathematics question-answer pairs.
+    system_prompt = """You are an expert physics professor in charge of evaluating the quality of scientific question-answer pairs.
     
     Your job is to determine if a question-answer pair is "trivial" based on:
     1. Whether the answer can be directly found in the context or question
-    2. Whether the answer can be easily guessed without deep understanding of mathematics
-    3. Whether the answer follows trivially from the question with minimal mathematical insight required
+    2. Whether the answer can be easily guessed without deep understanding of relevant domain knowledge
+    3. Whether the answer follows trivially from the question with 1-3 formulas required
     
-    A good, non-trivial question requires mathematical understanding, not just information retrieval.
+    A good, non-trivial question requires deep understanding of domain knowledge and relevant theory, not just information retrieval.
     """
     
     # Default result in case of persistent failures
@@ -309,13 +309,13 @@ def filter_trivial_samples(dataset):
         
         A "trivial" question-answer pair means:
         1. The answer can be directly spotted in the context or question text
-        2. The answer is too obvious and can be guessed without mathematical knowledge
-        3. The question requires minimal mathematical insight to solve
+        2. The answer is too obvious and can be guessed without domain knowledge
+        3. The question requires minimal scientific insight to solve
         
         Return your evaluation strictly in the following JSON format:
         {{
             "explanation": "Detailed explanation of why this sample is trivial or non-trivial",
-            "is_trivial": "true" if the sample is trivial, "false" if it requires mathematical understanding
+            "is_trivial": "true" if the sample is trivial, "false" if it requires deep scientific understanding of relevant theory
         }}
         """
         
@@ -397,7 +397,7 @@ def filter_trivial_samples(dataset):
 
 def main():
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(description="Generate high-quality QA pairs from mathematics theorems")
+    parser = argparse.ArgumentParser(description="Generate high-quality QA pairs from theorems")
     parser.add_argument("--input", type=str, default="theorem_dataset", help="Path to the input theorem dataset")
     parser.add_argument("--output", type=str, default="qa_pairs", help="Path to save the output QA dataset")
     parser.add_argument("--sample_theorems", type=int, help="Number of theorems to process")
