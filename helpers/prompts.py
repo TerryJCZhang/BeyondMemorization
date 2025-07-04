@@ -1,7 +1,7 @@
 
 SYSTEM_PROMPT_WO_CONTEXT = r"""
-You are an expert in mathematics and computer science. Your task is to create clear, specific question-answer pairs from theorems in research papers.
-The theorems should have a fixed answer, not an inequality or approximation. Some common examples:
+You are an expert in physics. Your task is to create clear, specific question-answer pairs from research papers.
+The questions should have a fixed answer, not an inequality or approximation. Some common examples:
 - Hi,: e.g., "If and only if condition A holds, then we can get X.", then we can ask "what condition must hold for X to be true?". This is also a fixed answer.
 - Existence and Uniqueness Theorems: e.g., "There exists a unique X that satisfies A.", then we can ask "what is the unique solution that satisfies A?". This is also a fixed answer.
 - Exact Formula Calculations: e.g., "The answer of formula (1) is 10", then we can ask "what is the value of formula (1)?". This is also a fixed answer.
@@ -12,7 +12,7 @@ If the theorem does not have a single fixed answer, you can skip it, just return
 
 If the theorem is a good candidate, your questions should:
 - clear states the context of the theorem, and clearly define the quantities in the question, make the question very specific and clear
-- be about a mathematical result that requires some mathematical reasoning to solve. Do not ask questions that are easy to answer without any mathematical reasoning.
+- be about a result that requires at least 6 steps of scientific reasoning to solve. Do not ask questions that are easy to answer without any mathematical reasoning.
 - don't directly mention the answer in the question 
 - don't ask questions that can be answered by yes or no, it's not a good question because it's too easy to guess the answer
 - if the theorem says "There exists an X that satisfies A" but the numerical value of X is not unique, skip the theorem
@@ -41,7 +41,7 @@ Always use standard LaTeX syntax when formatting mathematical expressions. All m
 
 # Create prompt for GPT-4o to check and standardize the LaTeX
 SYSTEM_PROMPT_STANDARDIZE_LATEX = r"""
-You are an expert in LaTeX. Your task is to review mathematical content from a mathematics paper and ensure it can be directly rendered in standard LaTeX without requiring custom command definitions. We should only use usepackage: amsmath, amssymb, enumerate, amsfonts, mathrsfs, mathtools, logicproof.
+You are an expert in LaTeX. Your task is to review contents from a scientific paper and ensure it can be directly rendered in standard LaTeX without requiring custom command definitions. We should only use usepackage: amsmath, amssymb, enumerate, amsfonts, mathrsfs, mathtools, logicproof.
 For any commonly used commands, you should not change them, e.g., \mathbb, \sum, \prod, \int, \lim, \frac, \sin, \cos, \tan, \ln, \exp, \log, \sqrt, \frac{d}{dx}, \frac{d^2}{dx^2}, etc. But if you find some words are similar to the custom command definitions but hard to parse, you can change them to the standard latex command, e.g., 'mathbb' should be changed to '\mathbb', because 'mathbb' is meaningless.
 
 For any custom commands used in the content, please replace them with standard LaTeX notation. Make sure to check if for each \begin command, there is a corresponding \end command and viceversa. Moreover, make sure that $ is not missing and insert it when needed.
@@ -71,7 +71,7 @@ Return the standardized content in this exact JSON format:
 
 # System prompt for verifying theorem quality
 SYSTEM_PROMPT_THEOREM_QUALITY = r"""
-You are an expert in mathematics and computer science. Your task is to verify if a theorem has a single, numerical answer, easy to be verified. The theorems should be at least graduate level.
+You are an expert in physics. Your task is to verify if a theorem has a single, numerical answer, easy to be verified. The theorems should be at least graduate level.
 
 The theorems should have a fixed numerical answer, not an approximation. Some common examples:
 - Necessary and Sufficient Conditions: e.g., "X holds if and only if condition A holds" only when at least one of A and X is specific, numerical quantity. We want results of the form "If condition A holds, then condition X holds" ONLY WHEN X is a NUMERICAL VALUE. We don't want "if some conditions are met, then the quantity satisfies a particular equation, then we can get X" when X is not a strict numerical value relation, because this does not have fixed unique solutions. Please be very strict about these rules!
@@ -104,13 +104,13 @@ return in this exact JSON format:
 
 
 SYSTEM_PROMPT_GENERATE_QA_FROM_THEOREMS_DATASET = r"""
-You are a skilled problem setter for graduate-level mathematics and theoretical computer science. You are provided with a set of theorems (called theorems_dataset), each of which has already been verified to contain a single, definitive, and numerical answer.
+You are a skilled problem setter for research-level physics. You are provided with a set of theorems (called theorems_dataset), each of which has already been verified to contain a single, definitive, and numerical answer.
 
 Your task is to convert each verified theorem into a precise **question-answer (QA) pair**. MAKE SURE TO NOT MENTION THE ANSWER TO THE QUESTION IN THE QUESTION ITSELF.
 
 Your outputs must follow these rules:
-1. The **question** should be a well-posed mathematical or theoretical problem that is **clearly understandable to a graduate-level student**. Do not ask questions that are easy to answer without any mathematical reasoning or easy to guess the answer. **You must never begin your question with "Prove that"**
-2. The **question must be solvable in principle with a unique numerical or mathematical answer**, based solely on the information in the theorem.
+1. The **question** should be a well-posed scientific problem that is **clearly understandable to a graduate-level student**. Do not ask questions that are easy to answer without any mathematical reasoning or easy to guess the answer. **You must never begin your question with "Prove that"**
+2. The **question must be solvable in principle with a unique numerical or analytical answer**, based solely on the information in the theorem.
 3. The **answer** must be:
    - Strictly and uniquely determined.
    - Expressed as a number, closed-form expression, formula.
