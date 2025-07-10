@@ -1,43 +1,36 @@
 
 SYSTEM_PROMPT_WO_CONTEXT = r"""
-You are an expert in physics. Your task is to create clear, specific question-answer pairs from research papers.
-The questions should have a fixed answer, not an inequality or approximation. Some common examples:
+You are an expert in designing scientific questions. Your task is to create clear question-answer pairs from research papers.
+The questions should have a unique numerical or analytical answer. Some common examples:
 - Hi,: e.g., "If and only if condition A holds, then we can get X.", then we can ask "what condition must hold for X to be true?". This is also a fixed answer.
 - Existence and Uniqueness Theorems: e.g., "There exists a unique X that satisfies A.", then we can ask "what is the unique solution that satisfies A?". This is also a fixed answer.
 - Exact Formula Calculations: e.g., "The answer of formula (1) is 10", then we can ask "what is the value of formula (1)?". This is also a fixed answer.
 - Unique Maximum/Minimum Points: e.g., "The maximum value of function f is 10 at point x=1", then we can ask "what is the maximum value of function f?". This is also a fixed answer.
 - Exact Complexity Results in Computational Complexity: e.g., "The time complexity of algorithm A is exactly $\Theta(n^2)$" (not $\Omega(n^2)$ or $O(n^2)$, because big-O and big-omega are not exact), then we can ask "what is the exact time complexity of algorithm A?". This is also a fixed answer.
 
-If the theorem does not have a single fixed answer, you can skip it, just return an empty result.
+If the theorem does not have a unique answer, you can skip and just return empty result.
 
 If the theorem is a good candidate, your questions should:
-- clear states the context of the theorem, and clearly define the quantities in the question, make the question very specific and clear
-- be about a result that requires at least 6 steps of scientific reasoning to solve. Do not ask questions that are easy to answer without any mathematical reasoning.
-- don't directly mention the answer in the question 
-- don't ask questions that can be answered by yes or no, it's not a good question because it's too easy to guess the answer
+- clear states the context of the theorem, and clearly define all quantities in the question, make the question very specific and clear
+- requires at least 6 steps of scientific reasoning.
+- never reveal or hint at the answer in the question 
+- never ask yes or no question, never ask questions that are easy to answer without any reasoning.
 - if the theorem says "There exists an X that satisfies A" but the numerical value of X is not unique, skip the theorem
-- if the conditions A under which we can get X are not unique (i.e. necessary and sufficient) in the case "If A, then X", don't ask about this and skip the theorem
-- re-define in the question the quantities from the theorem statement (without revealing the answer) so that the question is self-contained and be answered without needing the theorem statement.
+- if the conditions A under which we can get X are not unique (i.e. necessary and sufficient), skip the theorem
+- re-define in the question the quantities from the theorem statement (without revealing the answer) so that the question can be solved in a self-contained manner.
 
 If the theorem is a good candidate, your answers should:
-- a single, definitive answer, easy to be verified; not an inequality or approximation
-- Be extracted directly from the theorem
+- a unique numerical or analytical answer, easy to be verified without ambiguity;
+- if there's any approximation, the condition must be specified in the question body
 
 
 Important guidelines:
-- make sure that the question and answer are in a clean latex format, it should be directly renderable in a latex environment
-- if you cannot find such a question-answer pair, you don't need to return anything
-- please be very strict about the question and answer, if there is any ambiguity, you should return an empty result
+- make sure that both question and answer are in a clean latex format that are directly renderable in a latex environment
 - Respond only in the specified JSON format
 
 FORMAT INSTRUCTIONS:
-Always use standard LaTeX syntax when formatting mathematical expressions. All mathematical formulas should be enclosed within $...$ (inline) or \[...\] (block) environments, following standard LaTeX conventions.
+All mathematical syntax should be enclosed within $...$ (inline) or \[...\] (block) environments, following standard LaTeX conventions.
 """
-
-
-
-
-
 
 # Create prompt for GPT-4o to check and standardize the LaTeX
 SYSTEM_PROMPT_STANDARDIZE_LATEX = r"""
@@ -71,9 +64,9 @@ Return the standardized content in this exact JSON format:
 
 # System prompt for verifying theorem quality
 SYSTEM_PROMPT_THEOREM_QUALITY = r"""
-You are an expert in physics. Your task is to verify if a theorem has a single, numerical answer, easy to be verified. The theorems should be at least graduate level.
+You are an expert scientist. Your task is to verify if a theorem has a unique verifiable answer.
 
-The theorems should have a fixed numerical answer, not an approximation. Some common examples:
+The theorems should have a unique numerical or analytical answer. Some common examples:
 - Necessary and Sufficient Conditions: e.g., "X holds if and only if condition A holds" only when at least one of A and X is specific, numerical quantity. We want results of the form "If condition A holds, then condition X holds" ONLY WHEN X is a NUMERICAL VALUE. We don't want "if some conditions are met, then the quantity satisfies a particular equation, then we can get X" when X is not a strict numerical value relation, because this does not have fixed unique solutions. Please be very strict about these rules!
 - Existence and Uniqueness Theorems: e.g., "There exists a unique X that satisfies A.", but we don't want "There exists an X that satisfies A", because the latter is not a fixed unique solution.
 - Exact Formula Calculations: e.g., "The answer of formula (1) is 10", or "The solution for formula (1) is X", then both are fixed unique solutions.
@@ -83,16 +76,12 @@ The theorems should have a fixed numerical answer, not an approximation. Some co
 - Equality of two numerical equations: e.g., \sum_{k=1}^n k^2 = \frac{n(n-1)}{2} because we can assume the numerical fixed answer to be the difference of the 2 which is 0. You MUST include these equalities even if $n$ is not fixed but rather a variable. You MUST also include equations of the form "limit of f(n) = integral of g(x)"
  
 Some examples of theorems that we don't want:
-- We DON'T want the theorems that contain if and only if when neither of the sides is numerical ($x \in T$ does not represent a numerical value), e.g. "A graph is bipartite if and only if it contains no cycles of odd length."
 - We DON'T want theorems of the type "A holds if and only if there exists x such that X(x) holds", but we DO WANT "A holds if and only if for all x, X(x) holds", where X(x) is a fixed numerical value.
-- We DON'T want the theorems that have any approximations, or any inequalities, or any other non-deterministic statement. e.g. The theorems for which the main result involves the Big-O notation, or where the main result proven in the theorem is that a certain relation holds "if and only if n \geq x or n \leq y" MUST be rejected. We DO NOT consider any theorems where the answer is not an equality or a fixed answer, i.e. results of the type "n \geq 5" should NOT be considered, so just SKIP these types of theorems.
+- We DO NOT consider any theorems where the answer is not a definitive numerical or analytical answer
 - We DON'T want the theorems that state "X $\in$ complexity class Y" since Y can belong to a bigger complexity class Z, so the answer is not unique.
-- We DON'T want the theorems that state "X is isomorphic or homomorphic with Y", e.g., Chinese Remainder Theorem.
-
 
 Important guidelines:
-- if you cannot find a single, definitive answer, you should return an empty result
-- please be very strict about the theorem, if there is any ambiguity, you should return a "false"
+- if you cannot find a definitive answer, you should return an empty result
 - Respond only in the specified JSON format
 
 return in this exact JSON format:
@@ -104,17 +93,17 @@ return in this exact JSON format:
 
 
 SYSTEM_PROMPT_GENERATE_QA_FROM_THEOREMS_DATASET = r"""
-You are a skilled problem setter for research-level physics. You are provided with a set of theorems (called theorems_dataset), each of which has already been verified to contain a single, definitive, and numerical answer.
+You are an expert in designing research-level scientific questions. You are provided with a set of theorems (called theorems_dataset).
 
-Your task is to convert each verified theorem into a precise **question-answer (QA) pair**. MAKE SURE TO NOT MENTION THE ANSWER TO THE QUESTION IN THE QUESTION ITSELF.
+Your task is to convert each verified theorem into a precise **question-answer (QA) pair**. MAKE SURE TO NOT MENTION THE single definitive ANSWER TO THE QUESTION IN THE QUESTION ITSELF.
 
 Your outputs must follow these rules:
-1. The **question** should be a well-posed scientific problem that is **clearly understandable to a graduate-level student**. Do not ask questions that are easy to answer without any mathematical reasoning or easy to guess the answer. **You must never begin your question with "Prove that"**
+1. The **question** should be a well-posed scientific problem that is **clearly understandable to a PhD student**. Do not ask questions that are easy to answer without reasoning or easy to guess the answer. **You must never begin your question with "Prove that"**
 2. The **question must be solvable in principle with a unique numerical or analytical answer**, based solely on the information in the theorem.
 3. The **answer** must be:
    - Strictly and uniquely determined.
-   - Expressed as a number, closed-form expression, formula.
-4. DO NOT introduce extra assumptions or background. Use only what is stated or implied clearly by the theorem.
+   - Expressed as a number or closed-form analytical expression.
+4. DO NOT introduce extra assumptions or background info. Use only what is stated or implied clearly by the theorem.
 5. If a question naturally follows the structure of an identity (e.g., "What is the sum of ...?"), frame it that way.
 6. All QA pairs must reflect **the exact scope of the theorem**. Do not generalize, weaken, or strengthen its claim.
 7. DO NOT generate a QA pair if the theorem is ambiguous. DO NOT generate a QA pair for theorems where the main result to be proven is an inequality or a Big-O notation. We MUST NOT include any kind of inequalities, questions about the lower/upper bounds, or any asymptotic running time of algorithms, i.e. do not generate QA pairs for theorems where the main result is of the type "n \geq 5".
