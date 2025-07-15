@@ -1,7 +1,7 @@
 """
-Theorem Extractor: Extract High-Quality Theorems from Mathematics Papers
+Theorem Extractor: Extract High-Quality Theorems from Arxiv Papers
 
-This script processes arXiv mathematics papers to extract theorems.
+This script processes arXiv papers to extract theorems.
 It works by:
 1. Extracting theorems from LaTeX source using regex pattern matching
 2. Filtering for high-quality, well-formatted theorems
@@ -62,12 +62,12 @@ def setup_random_seed(seed=42):
 
 class TheoremExtractor:
     """
-    A class for extracting high-quality theorems from mathematical papers.
+    A class for extracting high-quality theorems from arxiv papers.
     
     This class provides functionality to:
     1. Process LaTeX files to extract theorems
     2. Filter for high-quality, well-formatted theorems
-    3. Process datasets of mathematics papers
+    3. Process datasets of papers
     """
     
     def __init__(self):
@@ -437,7 +437,7 @@ class TheoremExtractor:
 
     def evaluate_theorem_uniqueness(self, theorem_content):
         """
-        Use o3-mini-2025-01-31 to evaluate if a theorem has a single, definitive answer.
+        Use gpt-4.1-2025-04-14 to evaluate if a theorem has a single, definitive answer.
         
         Args:
             theorem_content (str): The content of the theorem
@@ -451,7 +451,7 @@ class TheoremExtractor:
         }
         try:
             # call the model untill we are not missing any keys
-            user_prompt = f"""Please evaluate this mathematical theorem and determine if it has a single, definitive answer:
+            user_prompt = f"""Please evaluate this scientific theorem and determine if it has a single, definitive answer:
 
                 {theorem_content}
 
@@ -467,7 +467,7 @@ class TheoremExtractor:
             while True:
                 iteration += 1
                 response = self.client.chat.completions.create(
-                    model="o3-mini-2025-01-31",
+                    model="gpt-4.1-2025-04-14",
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT_THEOREM_QUALITY},
                         {"role": "user", "content": user_prompt}
@@ -704,12 +704,19 @@ def remove_duplicates(dataset):
     print(f"length of dataset after removing duplicates: {len(dataset)}")
     return dataset
     
+def find_all_extract_dirs(root_dir):
+    extract_dirs = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        if os.path.basename(dirpath) == "latex_text":
+            extract_dirs.append(dirpath)
+    return extract_dirs
+
 
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description="Extract high-quality theorems from LaTeX papers")
-    parser.add_argument("--input", type=str, default="arxiv_math_papers_full_text", help="Path to the input dataset of LaTeX papers")
-    parser.add_argument("--output", type=str, default="theorem_dataset", help="Path to save the output dataset")
+    parser.add_argument("--input", type=str, default="output", help="Root directory containing nested extracts folders")
+    parser.add_argument("--output", type=str, default="output", help="Root directory to save nested theorems folders")
     parser.add_argument("--sample_papers", type=int, help="Number of papers to process")
     parser.add_argument("--include_appendix", action="store_true", help="Include theorems from appendices (default: skip appendix theorems)")
     args = parser.parse_args()
@@ -718,7 +725,7 @@ def main():
     console.print(
         Panel(
             "This tool extracts high-quality theorems from LaTeX papers.\n"
-            "The theorems are filtered for quality, mathematical significance, and proper formatting.",
+            "The theorems are filtered for quality, scientific significance, and proper formatting.",
             title="Theorem Extractor",
             border_style="blue"
         )
@@ -731,20 +738,33 @@ def main():
     else:
         console.print("[green]Appendix theorems: INCLUDED[/green]")
         console.print("[green]Theorems from appendices will be included in the output.[/green]")
+
+    # Find all extracts folders
+    extract_dirs = find_all_extract_dirs(args.input)
+    if not extract_dirs:
+        console.print(f"[red]No extracts folders found in {args.input}[/red]")
+        return
     
     # Create an instance of TheoremExtractor
     extractor = TheoremExtractor()
     
-    console.print(f"[bold]Processing dataset of LaTeX papers: {args.input}[/bold]")
-    dataset = extractor.process_dataset(
-        input_path=args.input,
-        output_path=args.output,
-        sample_papers=args.sample_papers,
-        skip_appendix=not args.include_appendix,
-    )
-    dataset = remove_duplicates(dataset)
-    dataset.save_to_disk(args.output)
-    console.print(f"[bold] Processed dataset saved to {args.output}[/bold]")
+    for extract_dir in extract_dirs:
+        # Compute relative path and output theorems folder
+        rel_path = os.path.relpath(extract_dir, args.input)
+        output_path = os.path.join(args.output, os.path.dirname(rel_path), "theorems")
+
+        os.makedirs(output_path, exist_ok=True)
+
+        console.print(f"[bold]Processing dataset of LaTeX papers: {extract_dir}[/bold]")
+        dataset = extractor.process_dataset(
+            input_path=extract_dir,
+            output_path=output_path,
+            sample_papers=args.sample_papers,
+            skip_appendix=not args.include_appendix,
+        )
+        dataset = remove_duplicates(dataset)
+        dataset.save_to_disk(output_path)
+        console.print(f"[bold] Processed dataset saved to {output_path}[/bold]")
 
 
 

@@ -45,7 +45,7 @@ class ArxivLatexExtractor:
         # Add session for connection pooling and consistent headers
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (compatible; ArxivLatexExtractor/1.0; +mailto:zj.jayzhang@gmail.com)'
+            'User-Agent': 'Mozilla/5.0 (compatible; ArxivLatexExtractor/1.0; +mailto:gopaldev108@gmail.com)'
         })
         logger.info(f"Loaded dataset with {len(self.dataset)} papers")
     
@@ -63,6 +63,7 @@ class ArxivLatexExtractor:
         """
         chunk_output = {
             'id': [],
+            'category': [],
             'paper_link': [],
             'title': [],
             'full_text': []
@@ -77,6 +78,7 @@ class ArxivLatexExtractor:
             success, full_text = self.process_paper(paper_id, latex_link)
             if success and full_text.strip():
                 chunk_output['id'].append(paper_id)
+                chunk_output['category'].append(paper['category'])
                 chunk_output['paper_link'].append(paper['paper_link'])
                 chunk_output['title'].append(paper['title'])
                 chunk_output['full_text'].append(full_text)
@@ -139,6 +141,7 @@ class ArxivLatexExtractor:
         # Combine results from all chunks
         batch_data = {
             'id': [],
+            'category': [],
             'paper_link': [],
             'title': [],
             'full_text': []
@@ -155,6 +158,7 @@ class ArxivLatexExtractor:
                 # Create a new dictionary combining existing and new data
                 final_data = {
                     'id': existing_dataset['id'] + batch_data['id'],
+                    'category': existing_dataset['category'] + batch_data['category'],
                     'paper_link': existing_dataset['paper_link'] + batch_data['paper_link'],
                     'title': existing_dataset['title'] + batch_data['title'],
                     'full_text': existing_dataset['full_text'] + batch_data['full_text']
@@ -762,6 +766,14 @@ class ArxivLatexExtractor:
             processed_lines.append(line)
         
         return '\n'.join(processed_lines)
+    
+
+def find_all_paper_dirs(root_dir):
+    paper_dirs = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        if os.path.basename(dirpath) == "papers":
+            paper_dirs.append(dirpath)
+    return paper_dirs
 
 
 """
@@ -769,13 +781,13 @@ python arxiv_latex_extractor.py --batch-size 10 --processes 2
 """
 def main():
     parser = argparse.ArgumentParser(description='Extract LaTeX source from arXiv papers.')
-    parser.add_argument('--input', default="arxiv_papers",
-                      help='Input dataset path (default: arxiv_papers)')
-    parser.add_argument('--output', default="latex_text",
-                      help='Output dataset path (default: latex_text)')
+    parser.add_argument('--input', default="output",
+                      help='Input root directory (default: output)')
+    parser.add_argument('--output', default="output",
+                      help='Output root directory (default: output)')
     parser.add_argument('--max-papers', type=int, default=None,
                       help='Maximum number of papers to process (default: all)')
-    parser.add_argument('--processes', type=int, default=3,
+    parser.add_argument('--processes', type=int, default=6,
                       help='Number of parallel processes (default: number of CPU cores)')
     parser.add_argument('--batch-size', type=int, default=10,
                       help='Number of papers to process in each batch (default: 10)')
@@ -783,111 +795,130 @@ def main():
                       help='Append to existing dataset instead of overwriting it (default: overwrite)')
     args = parser.parse_args()
 
+    input_root = args.input
+    output_root = args.output
 
-    # Create output directory if it doesn't exist
-    os.makedirs(args.output, exist_ok=True)
+    if not os.path.exists(input_root):
+        raise FileNotFoundError(f"Input root directory does not exist: {input_root}")
     
-    # Set up file logging in addition to console logging
-    log_file = os.path.join(args.output, "extraction_log.txt")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(file_handler)
-    
-    logger.info(f"Logs will be saved to {log_file}")
-    if args.append:
-        logger.info("Append mode enabled - results will be added to any existing dataset")
-    else:
-        logger.info("Overwrite mode enabled (default) - existing dataset will be replaced")
-
-    # Create the extractor
-    extractor = ArxivLatexExtractor(dataset_path=args.input)
-    
-    # Get all papers to process
-    papers_to_process = []
-    for paper in extractor.dataset:
-        papers_to_process.append(paper)
-    total_papers = len(papers_to_process)
-    logger.info(f"Found {total_papers} papers to process")
-    
-    if total_papers == 0:
-        logger.info("No papers to process!")
+    # Find all paper dataset directories
+    paper_dirs = find_all_paper_dirs(input_root)
+    if not paper_dirs:
+        logger.warning(f"No paper datasets found in {input_root}")
         return
-    
-    # Apply max_papers limit if specified
-    if args.max_papers:
-        papers_to_process = papers_to_process[:args.max_papers]
-        total_papers = len(papers_to_process)
-    
-    # Remove duplicates by paper_link while preserving order
-    unique_papers = []
-    seen_links = set()
-    for paper in papers_to_process:
-        paper_link = paper['paper_link']
-        if paper_link not in seen_links:
-            seen_links.add(paper_link)
-            unique_papers.append(paper)
-    
-    # Update papers_to_process with deduplicated list
-    papers_to_process = unique_papers
-    total_papers = len(papers_to_process)
-    logger.info(f"After removing duplicates: {total_papers} unique papers to process")
-    
-    # Calculate number of batches
-    num_batches = (total_papers + args.batch_size - 1) // args.batch_size
-    
-    # Track successfully processed papers
-    total_processed = 0
 
+    logger.info(f"Found {len(paper_dirs)} paper datasets to process.")
     
-    # Process papers in batches
-    for batch in range(num_batches):
-        start_idx = batch * args.batch_size
-        end_idx = min((batch + 1) * args.batch_size, total_papers)
-        batch_papers = papers_to_process[start_idx:end_idx]
+    for paper_dir in paper_dirs:
+        # Determine output path for this dataset
+        rel_path = os.path.relpath(paper_dir, input_root)
+        output_dir = os.path.join(output_root, os.path.dirname(rel_path), "latex_text")
+
+        os.makedirs(output_dir, exist_ok=True)
+        log_file = os.path.join(output_dir, "extraction_log.txt")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(file_handler)
+
+        logger.info(f"Processing dataset: {paper_dir}")
         
-        logger.info(f"\nProcessing batch {batch + 1}/{num_batches} (papers {start_idx} to {end_idx-1} of {total_papers-1})")
-        
-        # Create a temporary dataset for this batch
-        batch_dataset = Dataset.from_list(batch_papers)
-        extractor.dataset = batch_dataset
-        
-        # Build the full text dataset for this batch
-        # First batch overwrites if not in append mode, rest always append
-        should_overwrite = not (args.append or batch > 0)
-        
-        dataset = extractor.build_full_text_dataset(
-            output_path=args.output,
-            max_papers=len(batch_papers),
-            num_processes=args.processes,
-            overwrite=should_overwrite
-        )
-        
-        # Track progress
-        if dataset is not None:
-            batch_processed = len(dataset) - total_processed if batch > 0 else len(dataset)
-            total_processed = len(dataset)
-            logger.info(f"Batch {batch + 1} completed. Processed {batch_processed} papers in this batch.")
-            logger.info(f"Total papers processed so far: {total_processed}")
-            
-            # Show a sample from the first batch
-            if batch == 0:
-                print("\nSample from first batch:")
-                sample = dataset[:1]
-                print(f"ID: {sample['id'][0]}")
-                print(f"Title: {sample['title'][0]}")
-                print(f"Paper Link: {sample['paper_link'][0]}")
-                print(f"Full Text (first 500 chars): {sample['full_text'][0][:500]}...")
+        if args.append:
+            logger.info("Append mode enabled - results will be added to any existing dataset")
         else:
-            logger.warning(f"No papers were successfully processed in batch {batch + 1}")
-    
-    logger.info("\nProcessing completed!")
-    
-    # Load and show final statistics
-    if os.path.exists(args.output):
-        final_dataset = Dataset.load_from_disk(args.output)
-        logger.info(f"Final dataset contains {len(final_dataset)} papers")
-    else:
-        logger.warning("No output dataset found. No papers may have been successfully processed.")
+            logger.info("Overwrite mode enabled (default) - existing dataset will be replaced")
+
+        # Create the extractor
+        extractor = ArxivLatexExtractor(dataset_path=paper_dir)
+        
+        # Get all papers to process
+        papers_to_process = []
+        for paper in extractor.dataset:
+            papers_to_process.append(paper)
+        total_papers = len(papers_to_process)
+        logger.info(f"Found {total_papers} papers to process in this directory")
+        
+        if total_papers == 0:
+            logger.info("No papers to process in this directory, skipping to next!")
+            continue
+        
+        # Apply max_papers limit if specified
+        if args.max_papers:
+            papers_to_process = papers_to_process[:args.max_papers]
+            total_papers = len(papers_to_process)
+        
+        # Remove duplicates by paper_link while preserving order
+        unique_papers = []
+        seen_links = set()
+        for paper in papers_to_process:
+            paper_link = paper['paper_link']
+            if paper_link not in seen_links:
+                seen_links.add(paper_link)
+                unique_papers.append(paper)
+        
+        # Update papers_to_process with deduplicated list
+        papers_to_process = unique_papers
+        total_papers = len(papers_to_process)
+        logger.info(f"After removing duplicates: {total_papers} unique papers to process")
+        
+        # Calculate number of batches
+        num_batches = (total_papers + args.batch_size - 1) // args.batch_size
+        
+        # Track successfully processed papers
+        total_processed = 0
+
+        
+        # Process papers in batches
+        for batch in range(num_batches):
+            start_idx = batch * args.batch_size
+            end_idx = min((batch + 1) * args.batch_size, total_papers)
+            batch_papers = papers_to_process[start_idx:end_idx]
+            
+            logger.info(f"\nProcessing batch {batch + 1}/{num_batches} (papers {start_idx} to {end_idx-1} of {total_papers-1})")
+            
+            # Create a temporary dataset for this batch
+            batch_dataset = Dataset.from_list(batch_papers)
+            extractor.dataset = batch_dataset
+            
+            # Build the full text dataset for this batch
+            # First batch overwrites if not in append mode, rest always append
+            should_overwrite = not (args.append or batch > 0)
+            
+            dataset = extractor.build_full_text_dataset(
+                output_path=output_dir,
+                max_papers=len(batch_papers),
+                num_processes=args.processes,
+                overwrite=should_overwrite
+            )
+            
+            # Track progress
+            if dataset is not None:
+                batch_processed = len(dataset) - total_processed if batch > 0 else len(dataset)
+                total_processed = len(dataset)
+                logger.info(f"Batch {batch + 1} completed. Processed {batch_processed} papers in this batch.")
+                logger.info(f"Total papers processed so far: {total_processed}")
+                
+                # Show a sample from the first batch
+                if batch == 0:
+                    print("\nSample from first batch:")
+                    sample = dataset[:1]
+                    print(f"ID: {sample['id'][0]}")
+                    print(f"Category: {sample['category'][0]}")
+                    print(f"Title: {sample['title'][0]}")
+                    print(f"Paper Link: {sample['paper_link'][0]}")
+                    print(f"Full Text (first 500 chars): {sample['full_text'][0][:500]}...")
+            else:
+                logger.warning(f"No papers were successfully processed in batch {batch + 1}")
+        
+        logger.info("\nProcessing completed!")
+        
+        # Load and show final statistics
+        if os.path.exists(output_dir):
+            final_dataset = Dataset.load_from_disk(output_dir)
+            logger.info(f"Current extract output contains {len(final_dataset)} papers")
+        else:
+            logger.warning("No output dataset found. No papers may have been successfully processed.")
+        
+        logger.removeHandler(file_handler)
 
 
 if __name__ == "__main__":
