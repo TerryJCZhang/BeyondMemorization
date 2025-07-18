@@ -2,10 +2,12 @@
 # run:  python monthly_qa_pipeline.py --year 2024 --start 1 --end 6 -c cs,math
 
 import argparse, os, subprocess, shlex, sys
+import os
 from pathlib import Path
 from datasets import load_from_disk
 
 TARGET_QA = 20 # Target number of QA pairs to generate per month
+PYTHON = os.environ.get("PYTHON") if os.environ.get("PYTHON") else "python"
 
 def count_rows(path: Path) -> int:
     try:
@@ -45,7 +47,7 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
 
         # Step 1: Fetch papers
         run(
-            f"python helpers/arxiv_retriever.py "
+            f"{PYTHON} helpers/arxiv_retriever.py "
             f"--year {yr} --month {mo} {topic_arg} {topic} "
             f"--output {output_root} --max-results {papers_step} --append",
             arxiv_log
@@ -58,13 +60,13 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         main_log_fh.write(f"📚  Total papers available: {paper_now}\n")
 
         # Step 2: Extract LaTeX
-        run(f"python helpers/extract_latex_text.py --input {base} --output {base} --append", latex_log)
+        run(f"{PYTHON} helpers/extract_latex_text.py --input {base} --output {base} --append", latex_log)
 
         # Step 3: Extract Theorems
-        run(f"python helpers/extract_theorems.py --input {base} --output {base} --append", thm_log)
+        run(f"{PYTHON} helpers/extract_theorems.py --input {base} --output {base} --append", thm_log)
 
         # Step 4: Generate QA
-        run(f"python helpers/generate_qa.py --input {base} --output {base} --append", qa_log)
+        run(f"{PYTHON} helpers/generate_qa.py --input {base} --output {base} --append", qa_log)
 
         qa_now = count_rows(qa_dir)
         new_qas = qa_now - qa_prev
@@ -134,3 +136,7 @@ python monthly_qa_pipeline.py \
 
 if __name__ == "__main__":
     main()
+
+'''
+python monthly_qa_pipeline.py --year 2024 --start 5 --end 12
+'''
