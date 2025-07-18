@@ -21,59 +21,66 @@ def run(cmd: str, log_fh):
         log_fh.write(f"\nCommand failed: {cmd}\n")
         sys.exit(proc.returncode)
 
-def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: Path, log_fh, is_subcategory: bool):
+def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: Path, main_log_fh, is_subcategory: bool):
     iter_count = 0
     base = output_root / topic / str(yr) / f"{mo:02d}"
     papers_dir = base / "papers"
     qa_dir     = base / "qa_pairs"
 
     qa_prev = count_rows(qa_dir)
-    paper_prev = count_rows(papers_dir)  # 0 if first run
+    paper_prev = count_rows(papers_dir)
 
     while qa_prev < TARGET_QA:
-        print(f"\n🔁  Starting Iteration #{iter_count} for {topic.upper()} - {yr}-{mo:02d} 🔍")
-        print("────────────────────────────────────────────────────────────")
+        main_log_fh.write(f"\n🔁  Starting Iteration #{iter_count} for {topic.upper()} - {yr}-{mo:02d} 🔍\n")
+        main_log_fh.write("────────────────────────────────────────────────────────────\n")
         iter_count += 1
 
-        # 1) fetch more papers
         topic_arg = "--subcategories" if is_subcategory else "--categories"
 
+        # Define step-specific log files
+        arxiv_log = open(base / "arxiv_fetch.log", "a")
+        latex_log = open(base / "latex_extract.log", "a")
+        thm_log   = open(base / "theorem_extract.log", "a")
+        qa_log    = open(base / "qa_generate.log", "a")
+
+        # Step 1: Fetch papers
         run(
             f"python helpers/arxiv_retriever.py "
             f"--year {yr} --month {mo} {topic_arg} {topic} "
             f"--output {output_root} --max-results {papers_step} --append",
-            log_fh
+            arxiv_log
         )
 
         paper_now = count_rows(papers_dir)
         new_papers = paper_now - paper_prev
         paper_prev = paper_now
-        print(f"📄  New papers fetched: {new_papers}")
-        print(f"📚  Total papers available: {paper_now}")
+        main_log_fh.write(f"📄  New papers fetched: {new_papers}\n")
+        main_log_fh.write(f"📚  Total papers available: {paper_now}\n")
 
-        # 2-3) latex + theorem extraction
-        run(f"python helpers/extract_latex_text.py --input {base} --output {base} --append",
-            log_fh)
+        # Step 2: Extract LaTeX
+        run(f"python helpers/extract_latex_text.py --input {base} --output {base} --append", latex_log)
 
-        run(f"python helpers/extract_theorems.py --input {base} --output {base} --append",
-            log_fh)
+        # Step 3: Extract Theorems
+        run(f"python helpers/extract_theorems.py --input {base} --output {base} --append", thm_log)
 
-        # 4) QA generation
-        run(
-            f"python helpers/generate_qa.py --input {base} --output {base} --append",
-            log_fh
-        )
+        # Step 4: Generate QA
+        run(f"python helpers/generate_qa.py --input {base} --output {base} --append", qa_log)
 
         qa_now = count_rows(qa_dir)
         new_qas = qa_now - qa_prev
         qa_prev = qa_now
-        print(f"🧠  New QA pairs generated: {new_qas}")
-        print(f"🗃️  Total QA pairs available: {qa_now}")
+        main_log_fh.write(f"🧠  New QA pairs generated: {new_qas}\n")
+        main_log_fh.write(f"🗃️  Total QA pairs available: {qa_now}\n")
 
-        # stop only if *both* papers and QAs stalled
         if new_papers == 0 and new_qas == 0:
-            log_fh.write(f"\nNo new papers or QAs, assuming month exhausted.\n")
+            main_log_fh.write(f"\nNo new papers or QAs, assuming month exhausted.\n")
             break
+
+        # Close logs for this iteration
+        arxiv_log.close()
+        latex_log.close()
+        thm_log.close()
+        qa_log.close()
 
 def main():
     ap = argparse.ArgumentParser()
@@ -103,7 +110,7 @@ def main():
     for topic in cats + subcats:
         for mo in range(args.start, args.end + 1):
 
-            log_path = (Path(args.output_root) / topic / str(args.year) / f"{mo:02d}" / "pipeline.log")
+            log_path = (Path(args.output_root) / topic / str(args.year) / f"{mo:02d}" / "monthly_qa_pipeline.log")
             log_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(log_path, "a") as log_fh:

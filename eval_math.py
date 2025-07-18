@@ -41,6 +41,12 @@ import numpy as np
 from datasets import load_from_disk
 import asyncio  # Added for async support
 
+# Import rich console for better formatting
+from rich.console import Console
+from rich.panel import Panel
+
+console = Console()
+
 try:
     from datasets import load_dataset
 
@@ -59,11 +65,6 @@ from dotenv import load_dotenv
 load_dotenv()
 import re
 
-# Import rich console for better formatting
-from rich.console import Console
-from rich.panel import Panel
-
-console = Console()
 
 # Handle optional dependencies with graceful fallbacks
 try:
