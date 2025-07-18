@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Question-Answer Generator: Generate High-Quality QA Pairs from Mathematics Theorems
+Question-Answer Generator: Generate High-Quality QA Pairs from Theorems
 
 This script processes a dataset of theorems to generate high-quality question-answer pairs.
 It works by:
-1. Loading a dataset of mathematically significant theorems
+1. Loading a dataset of scientifically significant theorems
 2. For each theorem, using an LLM to generate a question-answer pair
 3. Filtering based on quality criteria and saving to a new dataset
 
 Key features:
-- Uses o3-mini or custom LLM to generate QA pairs
+- Uses o4-mini or custom LLM to generate QA pairs
 - Enforces strict criteria for question-answer quality
 - Outputs a structured dataset of QA pairs with links to original theorems
 
@@ -29,7 +29,7 @@ import argparse
 import json
 import tempfile
 import subprocess
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, load_from_disk, concatenate_datasets
 import openai
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -57,7 +57,7 @@ def setup_random_seed(seed=42):
 
 class QAGenerator:
     """
-    A class for generating high-quality question-answer pairs from mathematical theorems.
+    A class for generating high-quality question-answer pairs from theorems.
     
     This class provides functionality to:
     1. Process theorem datasets to generate QA pairs
@@ -119,7 +119,7 @@ class QAGenerator:
             while True:
                 iteration += 1
                 response = self.client.chat.completions.create(
-                    model="o3-mini-2025-01-31", 
+                    model="o4-mini-2025-04-16", 
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT_GENERATE_QA_FROM_THEOREMS_DATASET},
                         {"role": "user", "content": user_prompt}
@@ -144,22 +144,18 @@ class QAGenerator:
             console.print(f"[bold red]Error generating QA pair: {e}[/bold red]")
             return default_result
     
-    def process_dataset(self, input_path, output_path, sample_theorems=None):
+    def process_dataset(self, input_dataset, output_path, sample_theorems=None):
         """
         Process a dataset of theorems to generate QA pairs.
         
         Args:
-            input_path (str): Path to the input theorem dataset
+            input_dataset (Dataset): Dataset containing theorems
             output_path (str): Path to save the output QA dataset
             sample_theorems (int, optional): Number of theorems to process
             
         Returns:
             Dataset: Dataset of QA pairs
         """
-        # Load the input dataset
-        console.print(f"[green]Loading theorem dataset from {input_path}...[/green]")
-        input_dataset = load_from_disk(input_path)
-        
         # Shuffle the dataset
         input_dataset = input_dataset.shuffle(seed=42)
         console.print(f"[green]Loaded {len(input_dataset)} theorems[/green]")
@@ -171,6 +167,9 @@ class QAGenerator:
         
         # Initialize containers for output dataset
         paper_links = []
+        paper_ids = []
+        paper_domains = []
+        paper_citations = []
         theorems = []
         questions = []
         answers = []
@@ -194,6 +193,9 @@ class QAGenerator:
             if qa_pair['question'] and qa_pair['answer']:
                 # Add to output
                 paper_links.append(paper_link)
+                paper_ids.append(entry['paper_id'])
+                paper_domains.append(entry['paper_domain'])
+                paper_citations.append(entry['paper_citations'])
                 theorems.append(theorem)
                 questions.append(qa_pair['question'])
                 answers.append(qa_pair['answer'])
@@ -209,6 +211,9 @@ class QAGenerator:
         # Create the output dataset
         output_dataset = Dataset.from_dict({
             'paper_link': paper_links,
+            'paper_id': paper_ids,
+            'paper_domain': paper_domains,
+            'paper_citations': paper_citations,
             'theorem': theorems,
             'question': questions,
             'answer': answers,
@@ -263,6 +268,9 @@ def filter_trivial_samples(dataset):
     
     # Initialize containers for filtered dataset
     filtered_paper_links = []
+    filtered_paper_ids = []
+    filtered_paper_domains = []
+    filtered_paper_citations = []
     filtered_theorems = []
     filtered_questions = []
     filtered_answers = []
@@ -273,7 +281,7 @@ def filter_trivial_samples(dataset):
     non_trivial_count = 0
     
     # System prompt for detecting trivial samples
-    system_prompt = """You are an expert physics professor in charge of evaluating the quality of scientific question-answer pairs.
+    system_prompt = """You are an expert professor in charge of evaluating the quality of scientific question-answer pairs.
     
     Your job is to determine if a question-answer pair is "trivial" based on:
     1. Whether the answer can be directly found in the context or question
@@ -296,7 +304,7 @@ def filter_trivial_samples(dataset):
         answer = entry['answer']
         
         # Construct the user prompt
-        user_prompt = f"""Please evaluate if the following mathematics question-answer pair is trivial:
+        user_prompt = f"""Please evaluate if the following scientific question-answer pair is trivial:
         
         CONTEXT:
         {context}
@@ -328,7 +336,7 @@ def filter_trivial_samples(dataset):
             try:
                 # Call the LLM to evaluate the sample
                 response = client.chat.completions.create(
-                    model="o3-mini-2025-01-31",
+                    model="o4-mini-2025-04-16",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -365,6 +373,9 @@ def filter_trivial_samples(dataset):
             console.print(f"[green]Non-trivial sample identified.[/green]")
             # Add to filtered output
             filtered_paper_links.append(entry['paper_link'])
+            filtered_paper_ids.append(entry['paper_id'])
+            filtered_paper_domains.append(entry['paper_domain'])
+            filtered_paper_citations.append(entry['paper_citations'])
             filtered_theorems.append(entry['theorem'])
             filtered_questions.append(question)
             filtered_answers.append(answer)
@@ -374,6 +385,9 @@ def filter_trivial_samples(dataset):
     # Create the filtered dataset
     filtered_dataset = Dataset.from_dict({
         'paper_link': filtered_paper_links,
+        'paper_id': filtered_paper_ids,
+        'paper_domain': filtered_paper_domains,
+        'paper_citations': filtered_paper_citations,
         'theorem': filtered_theorems,
         'question': filtered_questions,
         'answer': filtered_answers,
@@ -395,13 +409,23 @@ def filter_trivial_samples(dataset):
     
     return filtered_dataset
 
+def find_all_theorems_dirs(root_dir):
+    """Find all directories named "theorems" in the given root directory."""
+    theorems_dirs = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        if os.path.basename(dirpath) == "theorems":
+            theorems_dirs.append(dirpath)
+    return theorems_dirs
+
+
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description="Generate high-quality QA pairs from theorems")
-    parser.add_argument("--input", type=str, default="theorem_dataset", help="Path to the input theorem dataset")
-    parser.add_argument("--output", type=str, default="qa_pairs", help="Path to save the output QA dataset")
+    parser.add_argument("--input", type=str, default="output", help="Root directory containing nested theorems folders")
+    parser.add_argument("--output", type=str, default="output", help="Root directory to save nested QA folders")
     parser.add_argument("--sample_theorems", type=int, help="Number of theorems to process")
     parser.add_argument("--filter_trivial", type=bool, default=True, help="Filter out trivial QA pairs")
+    parser.add_argument("--append", action="store_true", help="Append to existing QA dataset instead of overwriting")
     args = parser.parse_args()
     
     # Set random seed for reproducibility
@@ -409,31 +433,68 @@ def main():
     
     console.print(
         Panel(
-            "This tool generates high-quality question-answer pairs from mathematical theorems.\n"
+            "This tool generates high-quality question-answer pairs from scientific theorems.\n"
             "The QA pairs are filtered for quality, uniqueness, and proper formatting.",
             title="QA Pair Generator",
             border_style="blue"
         )
     )
+
+    # Find all theorems folders
+    theorems_dirs = find_all_theorems_dirs(args.input)
+    if not theorems_dirs:
+        console.print(f"[red]No theorems folders found in {args.input}[/red]")
+        return
     
     # Create an instance of QAGenerator
     generator = QAGenerator()
     
-    # Process the theorem dataset
-    dataset = generator.process_dataset(
-        input_path=args.input,
-        output_path=args.output,
-        sample_theorems=args.sample_theorems
-    )
-    # Filter trivial samples if requested
-    if args.filter_trivial:
-        console.print("[yellow]Filtering trivial samples from the dataset...[/yellow]")
-        dataset = filter_trivial_samples(dataset)
+    for theorems_dir in theorems_dirs:
+        rel_path = os.path.relpath(theorems_dir, args.input)
+        output_path = os.path.join(args.output, os.path.dirname(rel_path), "qa_pairs")
+        os.makedirs(output_path, exist_ok=True)
+
+        # APPEND MODE: Load already processed paper_ids
+        already_processed_ids = set()
+        if args.append and os.path.exists(output_path):
+            try:
+                existing_dataset = load_from_disk(output_path)
+                already_processed_ids = set(existing_dataset['paper_id'])
+                console.print(f"[yellow]Found {len(already_processed_ids)} already processed QAs in {output_path}[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Could not load existing QA dataset: {e}[/red]")
+
+        # Filter input dataset to only new theorems
+        input_dataset = load_from_disk(theorems_dir)
+        if args.append and already_processed_ids:
+            input_dataset = input_dataset.filter(lambda ex: ex['paper_id'] not in already_processed_ids)
+            if len(input_dataset) == 0:
+                console.print(f"[green]No new theorems to process in {theorems_dir}[/green]")
+                continue
+
+        console.print(f"[bold]Processing theorems dataset: {theorems_dir}[/bold]")
+        dataset = generator.process_dataset(
+            input_dataset=input_dataset,
+            output_path=output_path,
+            sample_theorems=args.sample_theorems
+        )
         
-        # Save the filtered dataset
+        # Filter trivial samples if requested
+        if args.filter_trivial:
+            console.print("[yellow]Filtering trivial samples from the dataset...[/yellow]")
+            dataset = filter_trivial_samples(dataset)
+
+        # Append to existing dataset if needed
+        if args.append and os.path.exists(output_path):
+            try:
+                existing_dataset = load_from_disk(output_path)
+                dataset = concatenate_datasets([existing_dataset, dataset])
+            except Exception as e:
+                console.print(f"[red]Could not append to existing QA dataset: {e}[/red]")
+
         dataset.save_to_disk(args.output)
         console.print(f"[green]Filtered QA pairs dataset saved to {args.output}[/green]")
-    
+        
 
 if __name__ == "__main__":
     main() 

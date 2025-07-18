@@ -64,6 +64,7 @@ class ArxivLatexExtractor:
         chunk_output = {
             'id': [],
             'category': [],
+            'citations': [],
             'paper_link': [],
             'title': [],
             'full_text': []
@@ -79,6 +80,7 @@ class ArxivLatexExtractor:
             if success and full_text.strip():
                 chunk_output['id'].append(paper_id)
                 chunk_output['category'].append(paper['category'])
+                chunk_output['citations'].append(paper.get('citations', []))
                 chunk_output['paper_link'].append(paper['paper_link'])
                 chunk_output['title'].append(paper['title'])
                 chunk_output['full_text'].append(full_text)
@@ -142,6 +144,7 @@ class ArxivLatexExtractor:
         batch_data = {
             'id': [],
             'category': [],
+            'citations': [],
             'paper_link': [],
             'title': [],
             'full_text': []
@@ -159,6 +162,7 @@ class ArxivLatexExtractor:
                 final_data = {
                     'id': existing_dataset['id'] + batch_data['id'],
                     'category': existing_dataset['category'] + batch_data['category'],
+                    'citations': existing_dataset['citations'] + batch_data['citations'],
                     'paper_link': existing_dataset['paper_link'] + batch_data['paper_link'],
                     'title': existing_dataset['title'] + batch_data['title'],
                     'full_text': existing_dataset['full_text'] + batch_data['full_text']
@@ -769,6 +773,7 @@ class ArxivLatexExtractor:
     
 
 def find_all_paper_dirs(root_dir):
+    """Find all directories named "papers" in the given root directory."""
     paper_dirs = []
     for dirpath, dirnames, filenames in os.walk(root_dir):
         if os.path.basename(dirpath) == "papers":
@@ -845,13 +850,24 @@ def main():
         if args.max_papers:
             papers_to_process = papers_to_process[:args.max_papers]
             total_papers = len(papers_to_process)
+
+        # Load already processed paper IDs if appending
+        already_processed_ids = set()
+        if args.append and os.path.exists(output_dir):
+            try:
+                existing_dataset = Dataset.load_from_disk(output_dir)
+                already_processed_ids = set(existing_dataset['id'])
+                logger.info(f"Found {len(already_processed_ids)} already processed papers in {output_dir}")
+            except Exception as e:
+                logger.warning(f"Error loading existing dataset: {e}. Will not append to it.")
         
         # Remove duplicates by paper_link while preserving order
         unique_papers = []
         seen_links = set()
         for paper in papers_to_process:
             paper_link = paper['paper_link']
-            if paper_link not in seen_links:
+            paper_id = paper['id']
+            if paper_link not in seen_links and paper_id not in already_processed_ids:
                 seen_links.add(paper_link)
                 unique_papers.append(paper)
         
@@ -903,6 +919,7 @@ def main():
                     sample = dataset[:1]
                     print(f"ID: {sample['id'][0]}")
                     print(f"Category: {sample['category'][0]}")
+                    print(f"Citations: {sample['citations'][0]}")
                     print(f"Title: {sample['title'][0]}")
                     print(f"Paper Link: {sample['paper_link'][0]}")
                     print(f"Full Text (first 500 chars): {sample['full_text'][0][:500]}...")

@@ -9,7 +9,10 @@ from datasets import Dataset
 from typing import List, Dict, Any, Optional
 import argparse
 import feedparser, urllib.parse, datetime as dt
+import requests, time
 
+_OA = requests.Session()
+_S2 = requests.Session()
 
 class ArxivPaperRetriever:
     """
@@ -26,10 +29,12 @@ class ArxivPaperRetriever:
             category: The arXiv category to search (default: 'None')
                       Can be a main category (e.g., 'math', 'cs') or specific subcategory (e.g., 'cs.IT', 'math.AG')
             log_path: Path to save logs (default: None)
+            is_subcategory: Whether the category is a specific subcategory (default: False)
         """
         self.start_time = start_time
         self.is_subcategory = is_subcategory
-        self.category = self.build_cat_query(category)
+        self.category = category
+        self.search_query = self.build_cat_query(category)
         self.current_end_time = None
         
         # Setup logging
@@ -53,11 +58,11 @@ class ArxivPaperRetriever:
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
 
-    def arxiv_count(self, category: str,
-                start: dt.datetime,
-                end:   dt.datetime) -> int:
-
-        q = f"{category} AND submittedDate:[{start:%Y%m%d%H%M%S} TO {end:%Y%m%d%H%M%S}]"
+    def arxiv_count(self, category_q: str, start: dt.datetime, end: dt.datetime) -> int:
+        """
+        Count the number of arXiv papers in a given category within a specific time range.
+        """
+        q = f"{category_q} AND submittedDate:[{start:%Y%m%d%H%M%S} TO {end:%Y%m%d%H%M%S}]"
         url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode({
             "search_query": q,
             "start": 0,
@@ -75,8 +80,61 @@ class ArxivPaperRetriever:
         else:
             search_query = f'cat:{category}.*'   # wildcard for all sub-cats
         return f'({search_query})'
+
+    def is_primary_category(self, result: arxiv.Result, target: str) -> bool:
+        """
+        Check if the result's primary category matches the target category.
+        """
+        primary = result.primary_category
+        if "." in target:
+            return primary == target
+        else:
+            return primary.startswith(f"{target}.")
     
-    def retrieve_papers(self, max_results: int = 100, time_window_days: int = 30) -> List[Dict[str, Any]]:
+    def _cite_openalex(self, arxiv_id: str) -> int | None:
+        """ Retrieve the citation count for an arXiv paper using OpenAlex."""
+        base = arxiv_id.split("v")[0]
+        url  = f"https://api.openalex.org/works/https://doi.org/10.48550/arXiv.{base}"
+        r = _OA.get(url, timeout=10)
+        if r.status_code == 200:
+            return int(r.json().get("cited_by_count", 0))
+        if r.status_code == 404:
+            return None
+        raise RuntimeError(f"OpenAlex {r.status_code}")
+
+    def _cite_semanticscholar(self, arxiv_id: str) -> int | None:
+        """ Retrieve the citation count for an arXiv paper using Semantic Scholar."""
+        base = arxiv_id.split("v")[0]
+        url  = f"https://api.semanticscholar.org/graph/v1/paper/arXiv:{base}?fields=citationCount"
+        r = _S2.get(url, timeout=10)
+        if r.status_code == 200:
+            return int(r.json().get("citationCount", 0))
+        if r.status_code == 404:
+            return None
+        raise RuntimeError(f"S2 {r.status_code}")
+    
+    def citation_count(self, arxiv_id: str, snooze=0.2) -> int:
+        """Helper: get an integer citation count w/ robust fallbacks.."""
+        try:
+            n = self._cite_openalex(arxiv_id)
+            if n is not None:
+                time.sleep(snooze)
+                return n
+        except Exception as e:
+            self.logger.debug(f"OpenAlex failed for {arxiv_id}: {e}")
+
+        try:
+            n = self._cite_semanticscholar(arxiv_id)
+            if n is not None:
+                time.sleep(snooze)
+                return n
+        except Exception as e:
+            self.logger.debug(f"S2 failed for {arxiv_id}: {e}")
+
+        self.logger.info(f"No citation data for {arxiv_id}; default 0")
+        return 0
+
+    def retrieve_papers(self, max_results: int = 100, time_window_days: int = 30, seen_ids: Optional[set] = None) -> List[Dict[str, Any]]:
         """
         Retrieve papers from arXiv within the specified category starting from start_time,
         incrementally increasing the time window until reaching max_results.
@@ -84,21 +142,21 @@ class ArxivPaperRetriever:
         Args:
             max_results: Maximum number of results to retrieve
             time_window_days: Number of days to extend the search window each iteration
+            seen_ids: Set of paper IDs already retrieved
             
         Returns:
             A list of dictionaries containing paper information
         """
         papers = []
-        # Set to keep track of paper IDs we've already seen to avoid duplicates
-        seen_paper_ids = set()
+        seen_paper_ids = set() if seen_ids is None else set(seen_ids)
         current_end_time = self.start_time + datetime.timedelta(days=time_window_days)
         
         self.logger.info(f"Starting search for {self.category} papers from {self.start_time}...")
-        self.logger.info(f"Total papers found in this window: {self.arxiv_count(self.category, self.start_time, current_end_time)}")
+        self.logger.info(f"Total papers found in this window: {self.arxiv_count(self.search_query, self.start_time, current_end_time)}")
         
         while len(papers) < max_results:
             # Define the search query for the current time window
-            search_query = self.category + ' AND submittedDate:[{} TO {}]'.format(
+            search_query = self.search_query + ' AND submittedDate:[{} TO {}]'.format(
                 self.start_time.strftime('%Y%m%d%H%M%S'),
                 current_end_time.strftime('%Y%m%d%H%M%S')
             )
@@ -128,6 +186,9 @@ class ArxivPaperRetriever:
                     # Skip this paper if we've already seen it
                     if paper_id in seen_paper_ids:
                         continue
+
+                    if not self.is_primary_category(result, self.category):
+                        continue
                         
                     # Add to seen set
                     seen_paper_ids.add(paper_id)
@@ -140,7 +201,8 @@ class ArxivPaperRetriever:
                     
                     papers.append({
                         'id': paper_id,
-                        'category': self.category,
+                        'category': result.primary_category,
+                        'citations': self.citation_count(paper_id),
                         'paper_link': paper_link,
                         'latex_link': latex_link,
                         'title': title
@@ -181,40 +243,64 @@ class ArxivPaperRetriever:
         self.logger.info(f"Retrieved a total of {len(papers)} papers from {self.start_time} to {current_end_time}.")
         return papers
     
-    def build_dataset(self, papers: Optional[List[Dict[str, Any]]] = None, max_results: int = 100, time_window_days: int = 30) -> Dataset:
+    def build_dataset(self, papers: Optional[List[Dict[str, Any]]] = None, max_results: int = 100, time_window_days: int = 30, seen_ids: Optional[set] = None) -> Dataset:
         """
         Build a Hugging Face dataset from the retrieved papers.
         
         Args:
             papers: List of paper dictionaries. If None, papers will be retrieved.
             max_results: Maximum number of results to retrieve if papers is None
-            
+            seen_ids: Set of paper IDs already retrieved
         Returns:
             A Hugging Face Dataset object
         """
         if papers is None:
-            papers = self.retrieve_papers(max_results=max_results, time_window_days=time_window_days)
+            papers = self.retrieve_papers(max_results=max_results, time_window_days=time_window_days, seen_ids=seen_ids)
         
         # Create a Hugging Face dataset
         dataset = Dataset.from_list(papers)
         
         self.logger.info(f"Created dataset with {len(dataset)} papers and columns: {dataset.column_names}")
         return dataset
-    
-    def save_dataset(self, output_path: str = None, max_results: int = 100, time_window_days: int = 30) -> None:
+
+    def save_dataset(self, output_path: str = None, max_results: int = 100, time_window_days: int = 30, append: bool = False) -> None:
         """
         Retrieve papers, build a dataset, and save it to disk.
         
         Args:
             output_path: Path where the dataset will be saved
             max_results: Maximum number of results to retrieve
+            time_window_days: Number of days for each iteration
+            append: Whether to append to an existing dataset (default: False)
         """
         if output_path is None:
             output_path = f"arxiv_{self.category}_papers"
-            
-        dataset = self.build_dataset(max_results=max_results, time_window_days=time_window_days)
-        dataset.save_to_disk(output_path)
-        self.logger.info(f"Dataset saved to {output_path}")
+
+        seen_ids = set()
+        existing_papers = []
+        if append and os.path.exists(output_path):
+            try:
+                existing_dataset = Dataset.load_from_disk(output_path)
+                existing_papers = existing_dataset.to_list()
+                seen_ids = {paper['id'] for paper in existing_papers}
+                self.logger.info(f"Loaded {len(seen_ids)} existing papers for deduplication.")
+            except Exception as e:
+                self.logger.warning(f"Could not load existing dataset for append: {e}")
+
+        new_papers = self.retrieve_papers(max_results=max_results, time_window_days=time_window_days, seen_ids=seen_ids)
+        all_papers = existing_papers + new_papers
+
+        # Deduplicate just in case
+        deduped = []
+        seen = set()
+        for paper in all_papers:
+            if paper['id'] not in seen:
+                seen.add(paper['id'])
+                deduped.append(paper)
+        final_dataset = Dataset.from_list(deduped)
+
+        final_dataset.save_to_disk(output_path)
+        self.logger.info(f"Dataset saved to {output_path} with {len(final_dataset)} unique papers.")
         self.logger.info(f"Final time window: {self.start_time} to {self.current_end_time}")
 
 
@@ -230,12 +316,19 @@ def main():
     parser.add_argument('--output', type=str, default=None, help='Output directory for the dataset')
     parser.add_argument('--max-results', type=int, default=100, help='Maximum number of results to retrieve')
     parser.add_argument('--time-window-days', type=int, default=30, help='Days to extend search window in each iteration')
+    parser.add_argument('--append', action='store_true', help='Append new papers to existing dataset instead of overwriting')
     
     args = parser.parse_args()
     
     # Validate month
     if args.month < 1 or args.month > 12:
         raise ValueError("Month must be between 1 and 12")
+    
+    if not args.categories and not args.subcategories:
+        raise ValueError("You must specify at least one category or subcategory to retrieve papers.")
+    
+    if args.categories and args.subcategories:
+        raise ValueError("You cannot specify both categories and subcategories. Use either --categories or --subcategories.")
     
     is_subcategory=bool(args.subcategories)
     
@@ -264,7 +357,7 @@ def main():
         retriever = ArxivPaperRetriever(start_time, category=cat, log_path=log_file, is_subcategory=is_subcategory)
 
         # Retrieve papers and build dataset
-        retriever.save_dataset(output_path=output_path, max_results=args.max_results, time_window_days=args.time_window_days)
+        retriever.save_dataset(output_path=output_path, max_results=args.max_results, time_window_days=args.time_window_days, append=args.append)
 
         # Show a sample of the dataset
         dataset = Dataset.load_from_disk(output_path)

@@ -28,7 +28,7 @@ import os
 import argparse
 import json
 
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, load_from_disk, concatenate_datasets
 import openai
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -582,12 +582,12 @@ class TheoremExtractor:
 
         return high_quality_theorems, num_theorems
 
-    def process_dataset(self, input_path, output_path, sample_papers=None, skip_appendix=True):
+    def process_dataset(self, input_dataset, output_path, sample_papers=None, skip_appendix=True):
         """
         Process a dataset of LaTeX papers.
         
         Args:
-            input_path (str): Path to the input dataset
+            input_dataset (Dataset): Dataset containing LaTeX papers
             output_path (str): Path to save the output dataset
             sample_papers (int, optional): Number of papers to process
             skip_appendix (bool): Whether to skip theorems from appendices
@@ -597,15 +597,17 @@ class TheoremExtractor:
         """
         # Initialize empty result containers
         all_ids = []
+        all_paper_ids = []
+        all_paper_domains = []
+        all_paper_citations = []
         all_paper_links = []
         all_contexts = []
         all_theorems = []
         all_unique_answer_explanations = []
-        input_dataset = load_from_disk(input_path)
         # Shuffle the dataset
         input_dataset = input_dataset.shuffle(seed=42)
         
-        console.print(f"[green]Loaded {len(input_dataset)} papers from {input_path}[/green]")
+        console.print(f"[green]Loaded {len(input_dataset)} papers from input dataset[/green]")
         
         # Remove duplicates in the dataset
         original_size = len(input_dataset)
@@ -657,6 +659,9 @@ class TheoremExtractor:
             # Add theorems to our collections
             for theorem in unique_theorems:
                 all_ids.append(len(all_ids))
+                all_paper_ids.append(paper.get('id', f"paper_{i}"))
+                all_paper_domains.append(paper.get('category', 'unknown'))
+                all_paper_citations.append(paper.get('citations', 0))
                 all_paper_links.append(paper_link)
                 all_contexts.append(theorem['context'])
                 all_theorems.append(theorem['theorem'])
@@ -680,6 +685,9 @@ class TheoremExtractor:
         # Create the dataset with updated fields
         dataset = Dataset.from_dict({
             'id': all_ids,
+            'paper_id': all_paper_ids,
+            'paper_domain': all_paper_domains,
+            'paper_citations': all_paper_citations,
             'paper_link': all_paper_links,
             'context': all_contexts,
             'theorem': all_theorems,
@@ -719,6 +727,7 @@ def main():
     parser.add_argument("--output", type=str, default="output", help="Root directory to save nested theorems folders")
     parser.add_argument("--sample_papers", type=int, help="Number of papers to process")
     parser.add_argument("--include_appendix", action="store_true", help="Include theorems from appendices (default: skip appendix theorems)")
+    parser.add_argument("--append", action="store_true", help="Append to existing theorems dataset instead of overwriting")
     args = parser.parse_args()
     setup_random_seed(seed=42)
 
@@ -752,17 +761,43 @@ def main():
         # Compute relative path and output theorems folder
         rel_path = os.path.relpath(extract_dir, args.input)
         output_path = os.path.join(args.output, os.path.dirname(rel_path), "theorems")
-
         os.makedirs(output_path, exist_ok=True)
+
+        # APPEND MODE: Load already processed paper_ids
+        already_processed_ids = set()
+        if args.append and os.path.exists(output_path):
+            try:
+                existing_dataset = load_from_disk(output_path)
+                already_processed_ids = set(existing_dataset['paper_id'])
+                console.print(f"[yellow]Found {len(already_processed_ids)} already processed papers in {output_path}[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Could not load existing theorems dataset: {e}[/red]")
+
+        # Filter input dataset to only new papers
+        input_dataset = load_from_disk(extract_dir)
+        if args.append and already_processed_ids:
+            input_dataset = input_dataset.filter(lambda paper: paper['paper_id'] not in already_processed_ids)
+            if len(input_dataset) == 0:
+                console.print(f"[green]No new papers to process in {extract_dir}[/green]")
+                continue
 
         console.print(f"[bold]Processing dataset of LaTeX papers: {extract_dir}[/bold]")
         dataset = extractor.process_dataset(
-            input_path=extract_dir,
+            input_dataset=input_dataset,
             output_path=output_path,
             sample_papers=args.sample_papers,
             skip_appendix=not args.include_appendix,
         )
         dataset = remove_duplicates(dataset)
+
+        if args.append and os.path.exists(output_path):
+            try:
+                existing_dataset = load_from_disk(output_path)
+                dataset = concatenate_datasets([existing_dataset, dataset])
+                dataset = remove_duplicates(dataset)
+            except Exception as e:
+                console.print(f"[red]Could not append to existing dataset: {e}[/red]")
+
         dataset.save_to_disk(output_path)
         console.print(f"[bold] Processed dataset saved to {output_path}[/bold]")
 
