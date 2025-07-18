@@ -37,6 +37,7 @@ from rich.panel import Panel
 import shutil
 import tempfile
 import subprocess
+import tempfile, shutil
 from prompts import SYSTEM_PROMPT_STANDARDIZE_LATEX, SYSTEM_PROMPT_THEOREM_QUALITY
 
 load_dotenv()
@@ -767,8 +768,10 @@ def main():
         already_processed_ids = set()
         if args.append and os.path.exists(output_path):
             try:
-                existing_dataset = load_from_disk(output_path)
-                already_processed_ids = set(existing_dataset['paper_id'])
+                processed_file = os.path.join(output_path, "processed_ids.json")
+                if os.path.exists(processed_file):
+                    with open(processed_file, "r") as f:
+                        already_processed_ids = set(json.load(f))
                 console.print(f"[yellow]Found {len(already_processed_ids)} already processed papers in {output_path}[/yellow]")
             except Exception as e:
                 console.print(f"[red]Could not load existing theorems dataset: {e}[/red]")
@@ -776,7 +779,7 @@ def main():
         # Filter input dataset to only new papers
         input_dataset = load_from_disk(extract_dir)
         if args.append and already_processed_ids:
-            input_dataset = input_dataset.filter(lambda paper: paper['paper_id'] not in already_processed_ids)
+            input_dataset = input_dataset.filter(lambda paper: paper['id'] not in already_processed_ids)
             if len(input_dataset) == 0:
                 console.print(f"[green]No new papers to process in {extract_dir}[/green]")
                 continue
@@ -790,16 +793,38 @@ def main():
         )
         dataset = remove_duplicates(dataset)
 
-        if args.append and os.path.exists(output_path):
+        if args.append:
             try:
-                existing_dataset = load_from_disk(output_path)
-                dataset = concatenate_datasets([existing_dataset, dataset])
-                dataset = remove_duplicates(dataset)
+                if os.path.exists(os.path.join(output_path, "dataset_info.json")):
+                    existing_dataset = load_from_disk(output_path)
+                    dataset = concatenate_datasets([existing_dataset, dataset])
+                    dataset = remove_duplicates(dataset)
+                else:
+                    console.print(f"[yellow]No existing dataset found at {output_path}, skipping append.[/yellow]")
             except Exception as e:
                 console.print(f"[red]Could not append to existing dataset: {e}[/red]")
 
-        dataset.save_to_disk(output_path)
+        with tempfile.TemporaryDirectory() as tmp_save_path:
+            dataset.save_to_disk(tmp_save_path)
+            shutil.rmtree(output_path)
+            shutil.move(tmp_save_path, output_path)
+
         console.print(f"[bold] Processed dataset saved to {output_path}[/bold]")
+
+        # Save processed IDs (if in append mode)
+        if args.append and os.path.exists(output_path):
+            for paper in input_dataset:
+                already_processed_ids.add(paper['id'])
+            with open(os.path.join(output_path, "processed_ids.json"), "w") as f:
+                json.dump(list(already_processed_ids), f)
+            console.print(f"[bold]Saved processed paper IDs to {os.path.join(output_path, 'processed_ids.json')}[/bold]")
+
+        # Load and show final statistics
+        if os.path.exists(output_path):
+            final_dataset = Dataset.load_from_disk(output_path)
+            console.print(f"[green]Current extract output contains {len(final_dataset)} theorems.[/green]")
+        else:
+            console.warning("[red]No output dataset found. No theorems may have been successfully processed.[/red]")
 
 
 

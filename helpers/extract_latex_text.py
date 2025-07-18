@@ -3,6 +3,7 @@
 
 import os
 import re
+import json
 import requests
 import tempfile
 import shutil
@@ -855,8 +856,10 @@ def main():
         already_processed_ids = set()
         if args.append and os.path.exists(output_dir):
             try:
-                existing_dataset = Dataset.load_from_disk(output_dir)
-                already_processed_ids = set(existing_dataset['id'])
+                processed_file = os.path.join(output_dir, "processed_ids.json")
+                if os.path.exists(processed_file):
+                    with open(processed_file, "r") as f:
+                        already_processed_ids = set(json.load(f))
                 logger.info(f"Found {len(already_processed_ids)} already processed papers in {output_dir}")
             except Exception as e:
                 logger.warning(f"Error loading existing dataset: {e}. Will not append to it.")
@@ -912,6 +915,18 @@ def main():
                 total_processed = len(dataset)
                 logger.info(f"Batch {batch + 1} completed. Processed {batch_processed} papers in this batch.")
                 logger.info(f"Total papers processed so far: {total_processed}")
+
+                # --- Update processed_ids.json so we don't re‑process these papers next time ---
+                if args.append:
+                    processed_ids_path = os.path.join(output_dir, "processed_ids.json")
+                    try:
+                        newly_processed_ids = set(p["id"] for p in batch_papers)
+                        already_processed_ids.update(newly_processed_ids)
+                        with open(processed_ids_path, "w") as f:
+                            json.dump(list(already_processed_ids), f)
+                        logger.info(f"Updated processed_ids.json with {len(newly_processed_ids)} newly processed IDs.")
+                    except Exception as e:
+                        logger.warning(f"Failed to update processed_ids.json: {e}")
                 
                 # Show a sample from the first batch
                 if batch == 0:

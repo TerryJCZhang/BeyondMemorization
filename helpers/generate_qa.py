@@ -27,7 +27,7 @@ Dependencies:
 import os
 import argparse
 import json
-import tempfile
+import tempfile, shutil
 import subprocess
 from datasets import Dataset, load_from_disk, concatenate_datasets
 import openai
@@ -232,10 +232,6 @@ class QAGenerator:
             )
         )
         
-        # Save the output dataset
-        output_dataset.save_to_disk(output_path)
-        console.print(f"[green]Saved QA dataset to {output_path}[/green]")
-        
         return output_dataset
 
 
@@ -336,7 +332,7 @@ def filter_trivial_samples(dataset):
             try:
                 # Call the LLM to evaluate the sample
                 response = client.chat.completions.create(
-                    model="o4-mini-2025-04-16",
+                    model="gpt-4.1-2025-04-14",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -458,8 +454,10 @@ def main():
         already_processed_ids = set()
         if args.append and os.path.exists(output_path):
             try:
-                existing_dataset = load_from_disk(output_path)
-                already_processed_ids = set(existing_dataset['paper_id'])
+                processed_file = os.path.join(output_path, "processed_ids.json")
+                if os.path.exists(processed_file):
+                    with open(processed_file, "r") as f:
+                        already_processed_ids = set(json.load(f))
                 console.print(f"[yellow]Found {len(already_processed_ids)} already processed QAs in {output_path}[/yellow]")
             except Exception as e:
                 console.print(f"[red]Could not load existing QA dataset: {e}[/red]")
@@ -467,7 +465,7 @@ def main():
         # Filter input dataset to only new theorems
         input_dataset = load_from_disk(theorems_dir)
         if args.append and already_processed_ids:
-            input_dataset = input_dataset.filter(lambda ex: ex['paper_id'] not in already_processed_ids)
+            input_dataset = input_dataset.filter(lambda theorem: theorem['paper_id'] not in already_processed_ids)
             if len(input_dataset) == 0:
                 console.print(f"[green]No new theorems to process in {theorems_dir}[/green]")
                 continue
@@ -485,16 +483,38 @@ def main():
             dataset = filter_trivial_samples(dataset)
 
         # Append to existing dataset if needed
-        if args.append and os.path.exists(output_path):
+        if args.append:
             try:
-                existing_dataset = load_from_disk(output_path)
-                dataset = concatenate_datasets([existing_dataset, dataset])
+                if os.path.exists(os.path.join(output_path, "dataset_info.json")):
+                    existing_dataset = load_from_disk(output_path)
+                    dataset = concatenate_datasets([existing_dataset, dataset])
+                else:
+                    console.print(f"[yellow]No existing QA dataset found at {output_path}, skipping append.[/yellow]")
             except Exception as e:
                 console.print(f"[red]Could not append to existing QA dataset: {e}[/red]")
 
-        dataset.save_to_disk(args.output)
-        console.print(f"[green]Filtered QA pairs dataset saved to {args.output}[/green]")
-        
+        # Save to a temporary directory first to avoid overwrite error
+        with tempfile.TemporaryDirectory() as tmp_save_path:
+            dataset.save_to_disk(tmp_save_path)
+            shutil.rmtree(output_path)
+            shutil.move(tmp_save_path, output_path)
+
+        console.print(f"[green]Filtered QA pairs dataset saved to {output_path}[/green]")
+
+        # Save processed IDs (if in append mode)
+        if args.append and os.path.exists(output_path):
+            for theorem in input_dataset:
+                already_processed_ids.add(theorem['paper_id'])
+            with open(os.path.join(output_path, "processed_ids.json"), "w") as f:
+                json.dump(list(already_processed_ids), f)
+            console.print(f"[bold]Updated processed_ids.json with {len(already_processed_ids)} newly processed IDs.[/bold]")
+
+        # Load and show final statistics
+        if os.path.exists(output_path):
+            final_dataset = Dataset.load_from_disk(output_path)
+            console.print(f"[green]Current extract output contains {len(final_dataset)} QA pairs.[/green]")
+        else:
+            console.warning("[red]No output dataset found. No QA pairs may have been successfully processed.[/red]")
 
 if __name__ == "__main__":
     main() 
