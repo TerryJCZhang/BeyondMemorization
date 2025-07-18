@@ -220,13 +220,15 @@ class QAGenerator:
             'context': contexts  
         })
         
-        # Print statistics
+        # Print statistics with division by zero protection
+        conversion_rate = (good_theorems / total_theorems * 100) if total_theorems > 0 else 0.0
+
         console.print(
             Panel(
                 f"[bold green]Processing complete![/bold green]\n\n"
                 f"Total theorems processed: {total_theorems}\n"
                 f"Good theorems with QA pairs: {good_theorems}\n"
-                f"Conversion rate: {good_theorems / total_theorems * 100:.1f}%",
+                f"Conversion rate: {conversion_rate:.1f}%",
                 title="QA Generation Results",
                 border_style="green"
             )
@@ -298,7 +300,14 @@ def filter_trivial_samples(dataset):
         context = entry['context']
         question = entry['question']
         answer = entry['answer']
-        
+
+        # Approximate token limit check (assuming ~4 characters per token)
+        approx_token_count = len(context) // 4
+        max_token_limit = 1000000  # keep below model's 1,047,576 context limit with margin
+        if approx_token_count > max_token_limit:
+            console.print(f"[red]Sample {i+1} skipped due to context length overflow: ~{approx_token_count} tokens[/red]")
+            continue
+
         # Construct the user prompt
         user_prompt = f"""Please evaluate if the following scientific question-answer pair is trivial:
         
@@ -390,14 +399,16 @@ def filter_trivial_samples(dataset):
         'context': filtered_contexts
     })
     
-    # Print statistics
+    # Print statistics with division by zero protection
+    retention_rate = (non_trivial_count / total_samples * 100) if total_samples > 0 else 0.0
+    
     console.print(
         Panel(
             f"[bold green]Filtering complete![/bold green]\n\n"
             f"Total samples evaluated: {total_samples}\n"
             f"Non-trivial samples retained: {non_trivial_count}\n"
             f"Trivial samples removed: {total_samples - non_trivial_count}\n"
-            f"Retention rate: {non_trivial_count / total_samples * 100:.1f}%",
+            f"Retention rate: {retention_rate:.1f}%",
             title="Filtering Results",
             border_style="green"
         )

@@ -153,6 +153,7 @@ class ArxivPaperRetriever:
 
         total_paper_count = self.arxiv_count(self.search_query, self.start_time, current_end_time)
         max_fetch = min(total_paper_count, 30000)  # arXiv API max is 30000 per query
+        offset = len(seen_ids)
         
         self.logger.info(f"Starting search for {self.category} papers from {self.start_time}...")
         self.logger.info(f"Total papers found in this window: {total_paper_count}")
@@ -178,7 +179,7 @@ class ArxivPaperRetriever:
         
         # Execute the search and process results
         try:
-            for result in client.results(search, offset=len(seen_paper_ids)):
+            for result in client.results(search, offset=offset):
                 paper_id = result.get_short_id()
                 
                 # Skip this paper if we've already seen it
@@ -215,9 +216,11 @@ class ArxivPaperRetriever:
             
         except arxiv.UnexpectedEmptyPageError as e:
             self.logger.warning(f"Encountered empty page error: {e}. Continuing further...")
+            time.sleep(5)  # Sleep to avoid hitting API limits
             # papers_after remains the same as initialized
         except Exception as e:
             self.logger.error(f"Error during paper retrieval: {str(e)}. Continuing further...")
+            time.sleep(5)  # Sleep to avoid hitting API limits
             # papers_after remains the same as initialized
 
         self.logger.info(f"Retrieved a total of {len(papers)} papers from {self.start_time} to {current_end_time}.")
@@ -258,7 +261,10 @@ class ArxivPaperRetriever:
 
         seen_ids = set()
         existing_papers = []
-        if append and os.path.exists(output_path):
+        dataset_metadata_files = ["dataset_info.json", "state.json"]
+        is_valid_dataset = all(os.path.exists(os.path.join(output_path, f)) for f in dataset_metadata_files)
+
+        if append and is_valid_dataset:
             try:
                 existing_dataset = Dataset.load_from_disk(output_path)
                 existing_papers = existing_dataset.to_list()

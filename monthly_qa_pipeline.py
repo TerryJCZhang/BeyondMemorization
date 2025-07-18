@@ -5,7 +5,7 @@ import argparse, os, subprocess, shlex, sys
 from pathlib import Path
 from datasets import load_from_disk
 
-TARGET_QA = 25
+TARGET_QA = 20 # Target number of QA pairs to generate per month
 
 def count_rows(path: Path) -> int:
     try:
@@ -87,7 +87,7 @@ def main():
     ap.add_argument("--year", type=int, required=True)
     ap.add_argument("--start", type=int, default=1, help="start month (1-12)")
     ap.add_argument("--end",   type=int, default=12, help="end month (1-12)")
-    ap.add_argument('-c', '--categories', type=str, default=None, 
+    ap.add_argument('-c', '--categories', type=str, default='cs, math, physics, q-fin, q-bio', 
                         help='List of arXiv categories to search (default: None). Can only be a main category with subcategories (e.g., cs, math)')
     ap.add_argument('-sc', "--subcategories", type=str, default=None,
                         help="List of specific subcategories to search (e.g., cs.IT, math.AG).")
