@@ -100,16 +100,16 @@ class QAGenerator:
             
             Generate a question-answer pair based on this theorem.
             
-            IMPORTANT: Make sure both the question and answer are formatted with proper LaTeX syntax:
-            1. All mathematical expressions must be enclosed in $ for inline math or $$ or \\[ \\] for display math
-            2. Use standard LaTeX commands for mathematical symbols (\\alpha, \\beta, \\sum, etc.)
-            3. Format the output so it can be directly rendered in a LaTeX document
+            IMPORTANT: Make sure both the question and answer are formatted in proper LaTeX syntax:
+            1. All symbolic expressions must be enclosed in $ for inline math or $$ or \\[ \\] for display math
+            2. Use standard LaTeX commands for mathematical symbols
+            3. Format the output to directly render in a LaTeX environment
             
-            Don't mention the answer in the question, it's a bad practice.
+            Never mention the answer in the question statement.
             Return your output strictly in the following JSON format:
             {{
-                "question": "Clearly stated, unique-answer question derived from the theorem. if the theorem is not good, return an empty string",
-                "answer": "The single, unique, exact answer derived from the theorem. if the theorem is not good, return an empty string",
+                "question": "Clearly stated question derived from the theorem with a unique answer. if the theorem is not good, return an empty string",
+                "answer": "The unique answer derived from the theorem. if the theorem is not good, return an empty string",
                 "is_good_qa": "true" if the question-answer pair is good, otherwise "false"
             }}
             """
@@ -279,14 +279,14 @@ def filter_trivial_samples(dataset):
     non_trivial_count = 0
     
     # System prompt for detecting trivial samples
-    system_prompt = """You are an expert professor in charge of evaluating the quality of scientific question-answer pairs.
+    system_prompt = """You are a research scientist in charge of evaluating the quality of scientific question-answer pairs.
     
     Your job is to determine if a question-answer pair is "trivial" based on:
-    1. Whether the answer can be directly found in the context or question
-    2. Whether the answer can be easily guessed without deep understanding of relevant domain knowledge
-    3. Whether the answer follows trivially from the question with 1-3 formulas required
+    1. Whether the answer can be directly found in the context or question statement
+    2. Whether the answer can be easily guessed without deep understanding domain knowledge
+    3. Whether the answer follows trivially from the question with 1-3 formulas
     
-    A good, non-trivial question requires deep understanding of domain knowledge and relevant theory, not just information retrieval.
+    A good, non-trivial question requires deep understanding of domain knowledge, NOT JUST information retrieval.
     """
     
     # Default result in case of persistent failures
@@ -322,13 +322,12 @@ def filter_trivial_samples(dataset):
         
         A "trivial" question-answer pair means:
         1. The answer can be directly spotted in the context or question text
-        2. The answer is too obvious and can be guessed without domain knowledge
-        3. The question requires minimal scientific insight to solve
+        2. The answer is easily guessed without domain knowledge
         
         Return your evaluation strictly in the following JSON format:
         {{
             "explanation": "Detailed explanation of why this sample is trivial or non-trivial",
-            "is_trivial": "true" if the sample is trivial, "false" if it requires deep scientific understanding of relevant theory
+            "is_trivial": "true" if the sample is trivial, "false" if it requires deep scientific understanding of domain knowledge
         }}
         """
         
