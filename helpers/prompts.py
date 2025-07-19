@@ -1,4 +1,4 @@
-n
+
 SYSTEM_PROMPT_WO_CONTEXT = r"""
 You are an expert research scientist designing clear question-answer pairs that requires at least 6 steps of scientific reasoning from research papers.
 The questions should have a unique numerical or analytical answer. Some common examples:

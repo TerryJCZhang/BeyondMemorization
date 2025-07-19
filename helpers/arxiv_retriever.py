@@ -158,71 +158,85 @@ class ArxivPaperRetriever:
         self.logger.info(f"Starting search for {self.category} papers from {self.start_time}...")
         self.logger.info(f"Total papers found in this window: {total_paper_count}")
 
-        search_query = self.search_query + ' AND submittedDate:[{} TO {}]'.format(
-            self.start_time.strftime('%Y%m%d%H%M%S'),
-            current_end_time.strftime('%Y%m%d%H%M%S')
-        )
-        
-        # Set up the arXiv client
-        client = arxiv.Client(
-            page_size=100,  # Number of results per query
-            delay_seconds=3,  # Be nice to the API
-            num_retries=5    # Retry on failure
-        )
-        
-        # Create the search
-        search = arxiv.Search(
-            query=search_query,
-            max_results=max_fetch,  # Only retrieve what we still need
-            sort_by=arxiv.SortCriterion.SubmittedDate
-        )
-        
-        # Execute the search and process results
-        try:
-            for result in client.results(search, offset=offset):
-                paper_id = result.get_short_id()
-                
-                # Skip this paper if we've already seen it
-                if paper_id in seen_paper_ids:
-                    continue
+        max_retries = 3
+        retry_count = 0
+        paper_seen_count = 0
 
-                if not self.is_primary_category(result, self.category):
-                    continue
-                    
-                # Add to seen set
-                seen_paper_ids.add(paper_id)
-                
-                title = result.title
-                paper_link = result.entry_id
-                
-                # Construct the LaTeX source link
-                latex_link = f"https://arxiv.org/e-print/{paper_id}"
-                
-                papers.append({
-                    'id': paper_id,
-                    'category': result.primary_category,
-                    'citations': self.citation_count(paper_id),
-                    'paper_link': paper_link,
-                    'latex_link': latex_link,
-                    'title': title
-                })
-                
-                # Print progress and check if we have enough papers
-                if len(papers) % 100 == 0:
-                    self.logger.info(f"Retrieved {len(papers)} papers so far...")
-                
-                if len(papers) >= max_results:
-                    break
+        while retry_count < max_retries and len(papers) < max_results:
+            retry_count += 1
+            offset += paper_seen_count
+            if retry_count > 1:
+                self.logger.info(f"Retrying search for {self.category} papers (attempt {retry_count})...")
+
+            search_query = self.search_query + ' AND submittedDate:[{} TO {}]'.format(
+                self.start_time.strftime('%Y%m%d%H%M%S'),
+                current_end_time.strftime('%Y%m%d%H%M%S')
+            )
             
-        except arxiv.UnexpectedEmptyPageError as e:
-            self.logger.warning(f"Encountered empty page error: {e}. Continuing further...")
-            time.sleep(5)  # Sleep to avoid hitting API limits
-            # papers_after remains the same as initialized
-        except Exception as e:
-            self.logger.error(f"Error during paper retrieval: {str(e)}. Continuing further...")
-            time.sleep(5)  # Sleep to avoid hitting API limits
-            # papers_after remains the same as initialized
+            # Set up the arXiv client
+            client = arxiv.Client(
+                page_size=100,  # Number of results per query
+                delay_seconds=3,  # Be nice to the API
+                num_retries=5    # Retry on failure
+            )
+            
+            # Create the search
+            search = arxiv.Search(
+                query=search_query,
+                max_results=max_fetch,  # Only retrieve what we still need
+                sort_by=arxiv.SortCriterion.SubmittedDate
+            )
+            
+            # Execute the search and process results
+            try:
+                for result in client.results(search, offset=offset):
+                    paper_id = result.get_short_id()
+                    paper_seen_count += 1
+                    
+                    # Skip this paper if we've already seen it
+                    if paper_id in seen_paper_ids:
+                        continue
+                    
+                    # Check if the result's primary category matches the target category
+                    if not self.is_primary_category(result, self.category):
+                        continue
+                        
+                    # Add to seen set
+                    seen_paper_ids.add(paper_id)
+                    
+                    title = result.title
+                    paper_link = result.entry_id
+                    
+                    # Construct the LaTeX source link
+                    latex_link = f"https://arxiv.org/e-print/{paper_id}"
+                    
+                    papers.append({
+                        'id': paper_id,
+                        'category': result.primary_category,
+                        'citations': 0,
+                        'paper_link': paper_link,
+                        'latex_link': latex_link,
+                        'title': title
+                    })
+                    
+                    # Print progress and check if we have enough papers
+                    if len(papers) % 100 == 0:
+                        self.logger.info(f"Retrieved {len(papers)} papers so far...")
+                    
+                    if len(papers) >= max_results:
+                        break
+                
+            except arxiv.UnexpectedEmptyPageError as e:
+                self.logger.warning(f"Encountered empty page error: {e}. Continuing further...")
+                time.sleep(5)  # Sleep to avoid hitting API limits
+                # papers_after remains the same as initialized
+            except Exception as e:
+                self.logger.error(f"Error during paper retrieval: {str(e)}. Continuing further...")
+                time.sleep(5)  # Sleep to avoid hitting API limits
+                # papers_after remains the same as initialized
 
+        self.current_end_time = current_end_time
+        self.logger.info(f"Total papers seen in this window: {paper_seen_count}")
         self.logger.info(f"Retrieved a total of {len(papers)} papers from {self.start_time} to {current_end_time}.")
         return papers
     

@@ -33,17 +33,17 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
     paper_prev = count_rows(papers_dir)
 
     while qa_prev < TARGET_QA:
-        main_log_fh.write(f"\n🔁  Starting Iteration #{iter_count} for {topic.upper()} - {yr}-{mo:02d} 🔍\n")
+        main_log_fh.write(f"\n Starting Iteration #{iter_count} for {topic.upper()} - {yr}-{mo:02d} \n")
         main_log_fh.write("────────────────────────────────────────────────────────────\n")
         iter_count += 1
 
         topic_arg = "--subcategories" if is_subcategory else "--categories"
 
         # Define step-specific log files
-        arxiv_log = open(base / "arxiv_fetch.log", "a")
-        latex_log = open(base / "latex_extract.log", "a")
-        thm_log   = open(base / "theorem_extract.log", "a")
-        qa_log    = open(base / "qa_generate.log", "a")
+        arxiv_log = open(base / "arxiv_fetch.log", "a", encoding="utf-8")
+        latex_log = open(base / "latex_extract.log", "a", encoding="utf-8")
+        thm_log   = open(base / "theorem_extract.log", "a", encoding="utf-8")
+        qa_log    = open(base / "qa_generate.log", "a", encoding="utf-8")
 
         # Step 1: Fetch papers
         run(
@@ -56,8 +56,8 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         paper_now = count_rows(papers_dir)
         new_papers = paper_now - paper_prev
         paper_prev = paper_now
-        main_log_fh.write(f"📄  New papers fetched: {new_papers}\n")
-        main_log_fh.write(f"📚  Total papers available: {paper_now}\n")
+        main_log_fh.write(f"New papers fetched: {new_papers}\n")
+        main_log_fh.write(f"Total papers available: {paper_now}\n")
 
         # Step 2: Extract LaTeX
         run(f"{PYTHON} helpers/extract_latex_text.py --input {base} --output {base} --append", latex_log)
@@ -71,8 +71,8 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         qa_now = count_rows(qa_dir)
         new_qas = qa_now - qa_prev
         qa_prev = qa_now
-        main_log_fh.write(f"🧠  New QA pairs generated: {new_qas}\n")
-        main_log_fh.write(f"🗃️  Total QA pairs available: {qa_now}\n")
+        main_log_fh.write(f"New QA pairs generated: {new_qas}\n")
+        main_log_fh.write(f"Total QA pairs available: {qa_now}\n")
 
         if new_papers == 0 and new_qas == 0:
             main_log_fh.write(f"\nNo new papers or QAs, assuming month exhausted.\n")
@@ -115,7 +115,7 @@ def main():
             log_path = (Path(args.output_root) / topic / str(args.year) / f"{mo:02d}" / "monthly_qa_pipeline.log")
             log_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(log_path, "a") as log_fh:
+            with open(log_path, "a", encoding="utf-8") as log_fh:
                 log_fh.write(f"\n=== {topic} {args.year}-{mo:02d} ===\n")
                 process_month(
                     topic, args.year, mo, args.papers_step, Path(args.output_root), log_fh, topic in subcats
