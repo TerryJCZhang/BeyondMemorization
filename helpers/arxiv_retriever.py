@@ -86,7 +86,7 @@ class ArxivPaperRetriever:
         Check if the result's primary category matches the target category.
         """
         primary = result.primary_category
-        if "." in target:
+        if self.is_subcategory:
             return primary == target
         else:
             return primary.startswith(f"{target}.")
@@ -153,7 +153,7 @@ class ArxivPaperRetriever:
 
         total_paper_count = self.arxiv_count(self.search_query, self.start_time, current_end_time)
         max_fetch = min(total_paper_count, 30000)  # arXiv API max is 30000 per query
-        offset = len(seen_ids)
+        offset = len(seen_paper_ids)
         
         self.logger.info(f"Starting search for {self.category} papers from {self.start_time}...")
         self.logger.info(f"Total papers found in this window: {total_paper_count}")
@@ -197,7 +197,7 @@ class ArxivPaperRetriever:
                     if paper_id in seen_paper_ids:
                         continue
                     
-                    # Check if the result's primary category matches the target category
+                    # Check if the result's primary category/subcategory matches the target category/subcategory
                     if not self.is_primary_category(result, self.category):
                         continue
                         
