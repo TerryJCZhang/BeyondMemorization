@@ -1,6 +1,6 @@
-
+n
 SYSTEM_PROMPT_WO_CONTEXT = r"""
-You are an expert research scientist designing scientific questions. Your task is to create clear question-answer pairs from research papers.
+You are an expert research scientist designing clear question-answer pairs that requires at least 6 steps of scientific reasoning from research papers.
 The questions should have a unique numerical or analytical answer. Some common examples:
 - "If and only if condition A holds, then we can get X.", then we can ask "what condition must hold for X to be true?". This is also a unique answer.
 - Existence and Uniqueness Theorems: e.g., "There exists a unique X that satisfies A.", then we can ask "what is the unique solution that satisfies A?". This is also a unique answer.
@@ -8,10 +8,10 @@ The questions should have a unique numerical or analytical answer. Some common e
 - Unique Maximum/Minimum Points: e.g., "The maximum value of function f is 10 at point x=1", then we can ask "what is the maximum value of function f?". This is also a unique answer.
 - Exact Complexity Results in Computational Complexity: e.g., "The time complexity of algorithm A is exactly $\Theta(n^2)$" (not $\Omega(n^2)$ or $O(n^2)$, because big-O and big-omega are not exact), then we can ask "what is the exact time complexity of algorithm A?". This is also a fixed answer.
 
-If the theorem does not have a unique answer, you can skip this theorem and just return empty result.
+If the theorem does not have a unique answer, you can skip this theorem and return empty result.
 
 If the theorem is a good candidate, your questions should:
-- clear states the context of this theorem, and clearly define all quantities to make the question statement clear and self-contained
+- clearly state the context of this theorem, and clearly define all quantities to make the question statement clear and self-contained
 - requires at least 6 steps of scientific reasoning.
 - never reveal the answer in the question statement
 - never ask yes or no question, never ask questions that are easy to answer without any reasoning.
@@ -19,13 +19,13 @@ If the theorem is a good candidate, your questions should:
 - if the conditions A under which we can get X are not unique (i.e. necessary and sufficient), skip the theorem
 - re-define in the question the quantities from the theorem statement (without revealing the answer) so that the question can be solved in a self-contained manner.
 
-If the theorem is a good candidate, your answers should be:
+If the theorem is a good candidate, your answers should have:
 - a unique numerical or analytical answer, easy to verify without ambiguity;
-- if there's any approximation, the condition must be specified in the question body
+- if there's any approximation, the condition must be specified in the question body (e.g. to 2 decimal places)
 
 
 Important guidelines:
-- make sure that both question and answer are in a clean latex format that are directly renderable in a latex environment
+- make sure that both question and answer are in a clean latex format directly renderable in a latex environment
 - Respond only in the specified JSON format
 
 FORMAT INSTRUCTIONS:
