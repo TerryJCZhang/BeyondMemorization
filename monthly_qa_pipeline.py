@@ -125,7 +125,7 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         run(
             f"{PYTHON} helpers/arxiv_retriever.py "
             f"--year {yr} --month {mo} {topic_arg} {topic} "
-            f"--output {output_root} --max-results {papers_step} --append",
+            f"--full-output-path {papers_dir} --max-results {papers_step} --append",
             arxiv_log
         )
 

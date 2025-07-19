@@ -314,6 +314,7 @@ def main():
     parser.add_argument('-sc', "--subcategories", type=str, default=None,
                         help="List of specific subcategories to search (e.g., cs.IT, math.AG).")
     parser.add_argument('--output', type=str, default=None, help='Output directory for the dataset')
+    parser.add_argument('--full-output-path', type=str, default=None, help='If provided, use this directory (e.g. "output/physics/gr-qc/2024/05/papers") instead of constructing it.')
     parser.add_argument('--max-results', type=int, default=100, help='Maximum number of results to retrieve')
     parser.add_argument('--time-window-days', type=int, default=30, help='Days to extend search window in each iteration')
     parser.add_argument('--append', action='store_true', help='Append new papers to existing dataset instead of overwriting')
@@ -337,12 +338,18 @@ def main():
     else:
         cat_list = [c.strip() for c in args.categories.split(',') if c.strip()]
 
+    if args.full_output_path and len(cat_list) != 1:
+        raise ValueError("--full-output-path can only be used with a single category/subcategory")
+
     # Calculate the start time
     start_time = datetime.datetime(args.year, args.month, 1)
     
     for cat in cat_list:
-        # Determine output path
-        output_path = os.path.join(args.output if args.output else "output", cat, str(args.year), f"{args.month:02d}", "papers")
+        # Resolve output_path
+        if args.full_output_path:
+            output_path = args.full_output_path
+        else:
+            output_path = os.path.join(args.output or "output", cat, str(args.year), f"{args.month:02d}", "papers")
 
         # Ensure the output directory exists
         os.makedirs(output_path, exist_ok=True)
