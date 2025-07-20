@@ -6,8 +6,8 @@ from typing import List, Tuple
 from pathlib import Path
 from datasets import load_from_disk
 
-SUBCAT_TARGET_QA = 5  # Target number of QA pairs to generate per month per subcategory
-TARGET_QA = 25  # Target number of QA pairs to generate per month per main category
+SUBCAT_TARGET_QA = 30  # Target number of QA pairs to generate per month per subcategory
+TARGET_QA = 30  # Target number of QA pairs to generate per month per main category
 PYTHON = os.environ.get("PYTHON") if os.environ.get("PYTHON") else "python"
 
 
