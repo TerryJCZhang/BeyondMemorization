@@ -5,46 +5,9 @@
 #### [📄 Paper](https://arxiv.org/abs/2505.12575)  |  [🤗 RealMath](https://huggingface.co/datasets/ethz-spylab/realmath) 
 </div>
 
-This is the official code for [RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics](https://arxiv.org/abs/2505.12575) by Jie Zhang, Cezara Petrui, Kristina Nikolić, Florian Tramèr.
+Code for [RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics](https://arxiv.org/abs/2505.12575)
 
-
-
-We provide a [HuggingFace dataset](https://huggingface.co/datasets/ethz-spylab/RealMath), which includes 633 samples from *math.arXiv*, 111 samples from *cs.arXiv*, and 542 samples from *Math Stack Exchange*.
-
-![description](teaser.png)
-
-
-## Motivatation
-
-We aim to address the following question:
-
-**How effective are large language models as assistants for practicing mathematicians today?**
-
-To explore this, our benchmark is designed with the following criteria in mind:
-
-- **Real-world application focus**  
-  Content is sourced from authentic mathematical research to reflect real-world use cases.
-
-- **Automated verification**  
-  Samples are designed to be easy to verify programmatically for scalable and reliable evaluation.
-
-- **Continuous acquisition**  
-  The benchmark is refreshable and designed to avoid dataset contamination over time.
-
-
-
-
-
-
-
-In this work, we present **RealMath**:
-
-- A data pipeline that extracts verifiable mathematical statements from research papers (e.g., arXiv) and mathematical forums (e.g., Stack Exchange), creating a rich corpus of research-level mathematical content.
-
-- An evaluation methodology focused on verifiable answers rather than proof assessment, allowing for automated correctness checking.
-
-- A continually refreshable dataset design, that leverages the vast and growing body of mathematical literature, allowing for regular updates with new content to mitigate contamination concerns.
-
+[HuggingFace dataset](https://huggingface.co/datasets/ethz-spylab/RealMath), which includes 633 samples from *math.arXiv*, 111 samples from *cs.arXiv*
 
 ## Overview
 
