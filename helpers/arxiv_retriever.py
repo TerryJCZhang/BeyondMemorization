@@ -299,6 +299,10 @@ class ArxivPaperRetriever:
                 deduped.append(paper)
         final_dataset = Dataset.from_list(deduped)
 
+        if len(final_dataset) == 0:
+            self.logger.warning("No papers retrieved for the specified parameters; skipping save_to_disk.")
+            return
+
         final_dataset.save_to_disk(output_path)
         self.logger.info(f"Dataset saved to {output_path} with {len(final_dataset)} unique papers.")
         self.logger.info(f"Final time window: {self.start_time} to {self.current_end_time}")
