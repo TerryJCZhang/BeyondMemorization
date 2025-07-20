@@ -204,5 +204,5 @@ __marimo__/
 
 # Misc
 env.sh
-output/
+output*
 tmp/

@@ -1,11 +1,11 @@
 """
-Math QA Evaluator: Evaluate LLM Performance on Mathematical Problem-Solving
+Math QA Evaluator: Evaluate LLM Performance on scientific Problem-Solving
 
-This script evaluates the performance of Language Models (LLMs) on mathematical
-question-answering tasks using a dataset generated from mathematical papers.
+This script evaluates the performance of Language Models (LLMs) on scientific
+question-answering tasks using a dataset generated from scientific papers.
 
 The script:
-1. Loads a mathematical QA dataset (containing questions, context, and ground truth answers)
+1. Loads a scientific QA dataset (containing questions, context, and ground truth answers)
 2. For each question, prompts an LLM to solve it using the provided context
 3. Evaluates the correctness of the LLM's answer against the ground truth
 4. Generates detailed metrics on the model's performance
@@ -140,11 +140,11 @@ OPENROUTER_MODELS = {
 
 class MathQAEvaluator:
     """
-    A class for evaluating LLM performance on mathematical question-answering tasks.
+    A class for evaluating LLM performance on scientific question-answering tasks.
 
     This class provides functionality to:
-    1. Load a mathematical QA dataset
-    2. Query OpenAI GPT models with mathematical problems
+    1. Load a scientific QA dataset
+    2. Query OpenAI GPT models with scientific problems
     3. Evaluate the correctness of the LLM's answers
     4. Generate performance metrics and comparisons
     """
@@ -180,7 +180,7 @@ class MathQAEvaluator:
 
     def load_dataset(self, dataset_path, sample_size=None, subset=None):
         """
-        Load the mathematical QA dataset.
+        Load the scientific QA dataset.
 
         Args:
             dataset_path (str): Path to the dataset or Hugging Face dataset ID.
@@ -258,11 +258,11 @@ class MathQAEvaluator:
         self, context, question, model_name="gpt-4o", use_context=True
     ):
         """
-        Query an OpenAI model with a mathematical problem.
+        Query an OpenAI model with a scientific problem.
 
         Args:
             context (str): The context/background information for the problem.
-            question (str): The mathematical question to solve.
+            question (str): The scientific question to solve.
             model_name (str, optional): The OpenAI model to use. Defaults to "gpt-4o".
             use_context (bool, optional): Whether to include context in the prompt. Defaults to True.
 
@@ -271,11 +271,11 @@ class MathQAEvaluator:
         """
         default_answer = {"final_answer": "", "reasoning": ""}
 
-        system_prompt = """You are an expert mathematician tasked with solving a mathematical problem. Given a question and context, provide a clear, step-by-step solution to the question based on the provided context.
-        Your answer should be precise, rigorous, and use proper mathematical notation.
+        system_prompt = """You are an expert scientist tasked with solving a scientific problem. Given a question and context, provide a clear, step-by-step solution to the question based on the provided context.
+        Your answer should be precise, rigorous, and use proper scientific notation.
         
         After your detailed explanation, include your final answer in a clear, properly formatted LaTeX after a section titled 'Final Answer' (\\section*{{Final Answer}}).
-        Ensure all math expressions are properly enclosed in $...$ or \\[...\\] delimiters.
+        Ensure all symbolic expressions are properly enclosed in $...$ or \\[...\\] delimiters.
         
         """
 
@@ -286,13 +286,13 @@ class MathQAEvaluator:
             QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
         else:
             user_prompt = f"""QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
 
         try:
@@ -319,11 +319,11 @@ class MathQAEvaluator:
         use_thinking=False,
     ):
         """
-        Query an Anthropic Claude model with a mathematical problem.
+        Query an Anthropic Claude model with a scientific problem.
 
         Args:
             context (str): The context/background information for the problem.
-            question (str): The mathematical question to solve.
+            question (str): The scientific question to solve.
             model_name (str, optional): The Anthropic model to use. Defaults to "claude-3-7-sonnet".
             use_context (bool, optional): Whether to include context in the prompt. Defaults to True.
             use_thinking (bool, optional): Whether to include thinking in the response. Defaults to True.
@@ -333,9 +333,9 @@ class MathQAEvaluator:
         if not ANTHROPIC_AVAILABLE or not self.anthropic_client:
             return "Error: Anthropic client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a mathematical problem.
+        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
-        Your answer should be precise, rigorous, and use proper mathematical notation.
+        Your answer should be precise, rigorous, and use proper scientific notation.
         
         After your detailed explanation, include your final answer in a clear, properly formatted LaTeX form
         under a section titled 'Final Answer' like this:
@@ -354,13 +354,13 @@ class MathQAEvaluator:
             QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
         else:
             user_content = f"""QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
 
         try:
@@ -411,11 +411,11 @@ class MathQAEvaluator:
         initial_timeout=3,
     ):
         """
-        Asynchronously query an Anthropic Claude model with a mathematical problem.
+        Asynchronously query an Anthropic Claude model with a scientific problem.
 
         Args:
             context (str): The context/background information for the problem.
-            question (str): The mathematical question to solve.
+            question (str): The scientific question to solve.
             model_name (str, optional): The Anthropic model to use. Defaults to "claude-3-7-sonnet".
             use_context (bool, optional): Whether to include context in the prompt. Defaults to True.
             use_thinking (bool, optional): Whether to include thinking in the response. Defaults to True.
@@ -427,9 +427,9 @@ class MathQAEvaluator:
         if not ANTHROPIC_AVAILABLE or not self.async_anthropic_client:
             return "Error: Anthropic client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a mathematical problem.
+        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
-        Your answer should be precise, rigorous, and use proper mathematical notation.
+        Your answer should be precise, rigorous, and use proper scientific notation.
         
         After your detailed explanation, include your final answer in a clear, properly formatted LaTeX form
         under a section titled 'Final Answer' like this:
@@ -448,13 +448,13 @@ class MathQAEvaluator:
             QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
         else:
             user_content = f"""QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
 
         retries = 0
@@ -538,11 +538,11 @@ class MathQAEvaluator:
         self, context, question, model_name="deepseek/deepseek-r1", use_context=True
     ):
         """
-        Query an OpenRouter model with a mathematical problem.
+        Query an OpenRouter model with a scientific problem.
 
         Args:
             context (str): The context/background information for the problem.
-            question (str): The mathematical question to solve.
+            question (str): The scientific question to solve.
             model_name (str, optional): The OpenRouter model to use. Defaults to "deepseek/deepseek-r1".
             use_context (bool, optional): Whether to include context in the prompt. Defaults to True.
 
@@ -552,9 +552,9 @@ class MathQAEvaluator:
         if not OPENROUTER_AVAILABLE or not self.openrouter_client:
             return "Error: OpenRouter client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a mathematical problem.
+        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
-        Your answer should be precise, rigorous, and use proper mathematical notation.
+        Your answer should be precise, rigorous, and use proper scientific notation.
         
         After your detailed explanation, include your final answer in a clear, properly formatted LaTeX form
         under a section titled 'Final Answer' like this:
@@ -573,13 +573,13 @@ class MathQAEvaluator:
             QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
         else:
             user_prompt = f"""QUESTION:
             {question}
             
-            Please solve this mathematical problem step by step, showing your reasoning clearly.
+            Please solve this scientific problem step by step, showing your reasoning clearly.
             At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
 
         try:
@@ -612,7 +612,7 @@ class MathQAEvaluator:
 
         Args:
             context (str): The context for the problem.
-            question (str): The mathematical question.
+            question (str): The scientific question.
             model_name (str): The name of the model to use.
             use_context (bool, optional): Whether to include context in the prompt. Defaults to True.
 
@@ -707,9 +707,9 @@ class MathQAEvaluator:
                     3. Fix any command syntax errors
                     4. Replace any non-standard LaTeX commands with standard equivalents
                     5. Ensure all LaTeX is properly formatted with appropriate line breaks for complex expressions
-                    6. Make sure mathematical formulas are properly enclosed in $ or \\[ \\] delimiters
+                    6. Make sure scientific formulas are properly enclosed in $ or \\[ \\] delimiters
                     
-                    IMPORTANT: You must not change the mathematical meaning of the content. Focus only on syntax corrections.
+                    IMPORTANT: You must not change the scientific meaning of the content. Focus only on syntax corrections.
                     
                     Respond ONLY with the corrected text. Do not explain your changes or add any comments."""
 
@@ -719,7 +719,7 @@ class MathQAEvaluator:
                     
                     Please fix any LaTeX syntax issues to ensure it can be compiled in a standard LaTeX document with amsmath and amssymb packages.
                     Format the answer with proper line breaks for complex expressions and ensure all math is properly delimited.
-                    Only make changes necessary for proper LaTeX rendering. Don't change the mathematical content or meaning."""
+                    Only make changes necessary for proper LaTeX rendering. Don't change the scientific content or meaning."""
 
                     response = self.openai_client.chat.completions.create(
                         model="gpt-4o",
@@ -836,15 +836,15 @@ class MathQAEvaluator:
 
         final_answer = answer_data
 
-        system_prompt = """You are an expert mathematician tasked with evaluating the correctness of an answer to a mathematical question.
+        system_prompt = """You are an expert mathematician tasked with evaluating the correctness of an answer to a scientific question.
         
-        Compare the generated answer to the ground truth answer and determine whether the generated answer is mathematically correct
+        Compare the generated answer to the ground truth answer and determine whether the generated answer is scientificly correct
         and equivalent to the ground truth.
         
         Please be very strict and rigorous in your evaluation, mark the answer as incorrect even if it is 80% or 90% correct.
         Ensure the generated answer can be directly rendered in standard LaTeX without requiring custom command definitions.
-        Be precise and focus on mathematical correctness, not formatting or style differences.
-        Your evaluation should be fair and consider that the same mathematical content can be expressed in different ways."""
+        Be precise and focus on scientific correctness, not formatting or style differences.
+        Your evaluation should be fair and consider that the same scientific content can be expressed in different ways."""
 
         user_prompt = f"""QUESTION:
         {question}
@@ -855,13 +855,13 @@ class MathQAEvaluator:
         GENERATED ANSWER:
         {final_answer}
         
-        Carefully evaluate whether the generated answer is mathematically correct 
+        Carefully evaluate whether the generated answer is scientificly correct 
         and equivalent to the ground truth. Your response should only contain a JSON object with the following fields:
         {{
           "is_correct": boolean,
           "explanation": "A concise explanation of why the answer is correct or incorrect, in a clean LaTeX format"
         }}
-        where is_correct is true if the answer is mathematically correct and equivalent to the ground truth, and false if it isn't."""
+        where is_correct is true if the answer is scientificly correct and equivalent to the ground truth, and false if it isn't."""
 
         try:
             response = self.openai_client.chat.completions.create(
@@ -1220,7 +1220,7 @@ class MathQAEvaluator:
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
-        description="Evaluate LLM performance on mathematical QA tasks"
+        description="Evaluate LLM performance on scientific QA tasks"
     )
     parser.add_argument(
         "--dataset",
@@ -1291,8 +1291,8 @@ def main():
 
     console.print(
         Panel(
-            "This tool evaluates LLM performance on mathematical question-answering tasks.\n"
-            "It works by prompting the LLM with a mathematical problem and evaluating its answer against the ground truth.",
+            "This tool evaluates LLM performance on scientific question-answering tasks.\n"
+            "It works by prompting the LLM with a scientific problem and evaluating its answer against the ground truth.",
             title="Math QA Evaluator",
             border_style="blue",
         )
