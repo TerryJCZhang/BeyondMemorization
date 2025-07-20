@@ -1,0 +1,7 @@
+2025-07-20 10:31:35,290 - arxiv_retriever - INFO - Starting search for math papers from 2024-05-01 00:00:00...
+2025-07-20 10:31:35,291 - arxiv_retriever - INFO - Total papers found in this window: 4490
+2025-07-20 10:31:43,683 - arxiv_retriever - INFO - Retrieved 100 papers so far...
+2025-07-20 10:31:43,684 - arxiv_retriever - INFO - Total papers seen in this window: 134
+2025-07-20 10:31:43,684 - arxiv_retriever - INFO - Retrieved a total of 100 papers from 2024-05-01 00:00:00 to 2024-05-31 00:00:00.
+2025-07-20 10:31:43,713 - arxiv_retriever - INFO - Dataset saved to outputmath202405papers with 100 unique papers.
+2025-07-20 10:31:43,713 - arxiv_retriever - INFO - Final time window: 2024-05-01 00:00:00 to 2024-05-31 00:00:00

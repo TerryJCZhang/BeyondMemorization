@@ -1,0 +1,26 @@
+# ───────────────────────────────
+# Dockerfile for RealMath benchmark
+# Save this file in: C:\Users\Public\PioneerScience\Dockerfile
+# ───────────────────────────────
+
+# 1. tiny Python image
+FROM python:3.11-slim
+
+# 2. minimal system deps (LaTeX is needed for the evaluator’s compile tests)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        texlive-latex-base texlive-latex-extra texlive-fonts-recommended && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 3. set working directory inside the container
+WORKDIR /workspace
+
+# 4. install Python requirements first (leverages Docker layer cache)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 5. copy the rest of the repo (helpers/, eval_math.py, commands.sh, …)
+COPY . .
+
+# 6. run the whole workflow automatically when the container starts
+ENTRYPOINT ["/bin/bash", "commands.sh"]
