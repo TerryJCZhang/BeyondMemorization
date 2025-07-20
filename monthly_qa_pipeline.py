@@ -6,30 +6,20 @@ from typing import List, Tuple
 from pathlib import Path
 from datasets import load_from_disk
 
-TARGET_QA = 2 # Target number of QA pairs to generate per month per category or subcategory
+SUBCAT_TARGET_QA = 2 # Target number of QA pairs to generate per month per subcategory
+TARGET_QA = 25  # Target number of QA pairs to generate per month per main category
 PYTHON = os.environ.get("PYTHON") if os.environ.get("PYTHON") else "python"
 
 
 SUBCATEGORY_EXPANSIONS = {
-    "physics": [
-        "gr-qc", "hep-th", "math-ph", "physics.flu-dyn","nlin.AO",
-        "nlin.CD", "nlin.SI","physics.comp-ph", "quant-ph", "physics.data-an"
-    ],
-    "math": [
-        "math.AG", "math.AP", "math.AT", "math.CA","math.CO",
-        "math.DS", "math.LO", "math.NT","math.PR", "math.ST"
-    ],
     "cs": [
-        "cs.CC", "cs.CE", "cs.CR", "cs.DM", "cs.FL",
-        "cs.IT", "cs.LG", "cs.LO", "cs.SC", "cs.NA"
+        "cs.CC", "cs.CR", "cs.IT", "cs.LG", "cs.SC"
     ],
-    "q-bio": [
-        "q-bio.BM", "q-bio.CB", "q-bio.GN", "q-bio.MN", "q-bio.NC",
-        "q-bio.OT", "q-bio.PE", "q-bio.QM", "q-bio.SC", "q-bio.TO"
+    "physics": [
+        "gr-qc", "math-ph", "nlin.SI", "physics.comp-ph", "physics.flu-dyn"
     ],
     "q-fin": [
-        "econ.EM", "q-fin.GN", "q-fin.CP", "q-fin.EC", "q-fin.MF",
-        "q-fin.PM", "q-fin.PR", "q-fin.RM", "q-fin.ST", "q-fin.TR"
+        "econ.EM", "q-fin.CP", "q-fin.EC", "q-fin.MF", "q-fin.ST"
     ]
 }
 
@@ -108,7 +98,9 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
     qa_prev = count_rows(qa_dir)
     paper_prev = count_rows(papers_dir)
 
-    while qa_prev < TARGET_QA:
+    target_num = SUBCAT_TARGET_QA if is_subcategory else TARGET_QA
+
+    while qa_prev < target_num:
         main_log_fh.write(f"\n Starting Iteration #{iter_count} for {topic.upper()} - {yr}-{mo:02d} \n")
         main_log_fh.write("────────────────────────────────────────────────────────────\n")
         iter_count += 1
@@ -165,12 +157,12 @@ def main():
     ap.add_argument("--year", type=int, required=True)
     ap.add_argument("--start", type=int, default=1, help="start month (1-12)")
     ap.add_argument("--end",   type=int, default=12, help="end month (1-12)")
-    ap.add_argument('-c', '--categories', type=str, default=None, 
+    ap.add_argument('-c', '--categories', type=str, default='math', 
                         help='List of arXiv categories to search (default: None). Can only be a main category with subcategories (e.g., cs, math)')
-    ap.add_argument('-sc', "--subcategories", type=str, default='cs, math, physics, q-fin, q-bio',
+    ap.add_argument('-sc', "--subcategories", type=str, default='cs, physics, q-fin',
                         help="List of specific subcategories to search (e.g., cs.IT, math.AG).")
     ap.add_argument("--output_root", type=str, default='output', help='Output directory for the dataset')
-    ap.add_argument("--papers-step", type=int, default=100,
+    ap.add_argument("--papers-step", type=int, default=25,
                     help="how many new papers to request each loop")
     args = ap.parse_args()
 
