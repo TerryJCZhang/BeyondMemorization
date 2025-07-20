@@ -816,6 +816,11 @@ def main():
     logger.info(f"Found {len(paper_dirs)} paper datasets to process.")
     
     for paper_dir in paper_dirs:
+        # Skip directories that are missing dataset metadata
+        if not any(os.path.exists(os.path.join(paper_dir, f)) for f in ["dataset_info.json", "state.json"]):
+            logger.warning(f"Skipping {paper_dir}: directory is not a valid Dataset (no metadata files).")
+            continue
+
         # Determine output path for this dataset
         rel_path = os.path.relpath(paper_dir, input_root)
         output_dir = os.path.join(output_root, os.path.dirname(rel_path), "latex_text")

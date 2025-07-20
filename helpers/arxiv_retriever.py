@@ -370,10 +370,14 @@ def main():
         # Retrieve papers and build dataset
         retriever.save_dataset(output_path=output_path, max_results=args.max_results, time_window_days=args.time_window_days, append=args.append)
 
-        # Show a sample of the dataset
-        dataset = Dataset.load_from_disk(output_path)
-        print("\nSample of the dataset:")
-        print(dataset[:1])
+        # Only attempt to load the dataset if it was actually saved
+        dataset_meta_files = ["dataset_info.json", "state.json"]
+        if any(os.path.exists(os.path.join(output_path, f)) for f in dataset_meta_files):
+            dataset = Dataset.load_from_disk(output_path)
+            print("\nSample of the dataset:")
+            print(dataset[:1])
+        else:
+            print("No dataset was saved (0 papers retrieved); skipping dataset sample display.")
 
 """
 Examples:
