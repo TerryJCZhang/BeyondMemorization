@@ -17,9 +17,6 @@ SUBCATEGORY_EXPANSIONS = {
     ],
     "physics": [
         "gr-qc", "math-ph", "nlin.SI", "physics.comp-ph", "physics.flu-dyn"
-    ],
-    "q-fin": [
-        "econ.EM", "q-fin.CP", "q-fin.EC", "q-fin.MF", "q-fin.ST"
     ]
 }
 
@@ -159,10 +156,10 @@ def main():
     ap.add_argument("--end",   type=int, default=12, help="end month (1-12)")
     ap.add_argument('-c', '--categories', type=str, default='math', 
                         help='List of arXiv categories to search (default: None). Can only be a main category with subcategories (e.g., cs, math)')
-    ap.add_argument('-sc', "--subcategories", type=str, default='cs, physics, q-fin',
+    ap.add_argument('-sc', "--subcategories", type=str, default='cs, physics',
                         help="List of specific subcategories to search (e.g., cs.IT, math.AG).")
     ap.add_argument("--output_root", type=str, default='output', help='Output directory for the dataset')
-    ap.add_argument("--papers-step", type=int, default=25,
+    ap.add_argument("--papers-step", type=int, default=100,
                     help="how many new papers to request each loop")
     args = ap.parse_args()
 
