@@ -206,3 +206,4 @@ __marimo__/
 env.sh
 output*
 tmp/
+results_*.json
