@@ -371,7 +371,7 @@ class MathQAEvaluator:
                     messages=[{"role": "user", "content": user_content}],
                     thinking={"type": "enabled", "budget_tokens": 20000},
                     system=system_prompt,
-            )
+                )
             else:
                 response = self.anthropic_client.messages.create(
                     model=model_name,
@@ -466,9 +466,11 @@ class MathQAEvaluator:
                     model=model_name,
                     max_tokens=16000 + 4000 if use_thinking else 4000,
                     messages=[{"role": "user", "content": user_content}],
-                    thinking={"type": "enabled", "budget_tokens": 16000}
-                    if use_thinking
-                    else None,
+                    thinking=(
+                        {"type": "enabled", "budget_tokens": 16000}
+                        if use_thinking
+                        else None
+                    ),
                     system=system_prompt,
                 ) as stream:
                     response = await stream.get_final_message()
@@ -976,7 +978,7 @@ class MathQAEvaluator:
         for i, example in enumerate(
             tqdm(dataset, desc=f"Evaluating {model_name}", disable=not self.verbose)
         ):
-            context = example["context"] if use_context else ""
+            context = example.get("context", "") if use_context else ""
             theorem_content = example["theorem"]
             question = example["question"]
             ground_truth = example["answer"]
@@ -989,7 +991,7 @@ class MathQAEvaluator:
                 )
                 console.print(f"[bold]Question:[/bold] {question}")
                 console.print(
-                    f"[bold]Context:[/bold] {'[OMITTED]' if not use_context else context[:100] + '...' if len(context) > 100 else context}"
+                    f"[bold]Context:[/bold] {'[OMITTED]' if (not use_context) or (len(context) == 0) else context[:100] + '...' if len(context) > 100 else context}"
                 )
 
             # Call the model and measure response time
@@ -1305,7 +1307,6 @@ def main():
     dataset = evaluator.load_dataset(
         args.dataset, sample_size=args.sample, subset=args.subset
     )
-
 
     if dataset is None:
         console.print(
