@@ -79,7 +79,8 @@ def count_rows(path: Path) -> int:
         return 0
 
 def run(cmd: str, log_fh):
-    proc = subprocess.run(shlex.split(cmd),
+    parts = shlex.split(cmd, posix=(os.name != 'nt'))
+    proc = subprocess.run(parts,
                           stdout=log_fh,
                           stderr=subprocess.STDOUT)
     if proc.returncode:
@@ -91,6 +92,9 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
     base = build_base_path(topic, yr, mo, output_root)
     papers_dir = base / "papers"
     qa_dir     = base / "qa_pairs"
+    # Convert to POSIX strings to avoid back‑slash escaping issues on Windows
+    base_str = base.as_posix()
+    papers_dir_str = papers_dir.as_posix()
 
     qa_prev = count_rows(qa_dir)
     paper_prev = count_rows(papers_dir)
@@ -114,7 +118,7 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         run(
             f"{PYTHON} helpers/arxiv_retriever.py "
             f"--year {yr} --month {mo} {topic_arg} {topic} "
-            f"--full-output-path {papers_dir} --max-results {papers_step} --append",
+            f"--full-output-path {papers_dir_str} --max-results {papers_step} --append",
             arxiv_log
         )
 
@@ -124,14 +128,18 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         main_log_fh.write(f"New papers fetched: {new_papers}\n")
         main_log_fh.write(f"Total papers available: {paper_now}\n")
 
+        if new_papers == 0:
+            main_log_fh.write(f"\nNo new papers, assuming month exhausted.\n")
+            break
+
         # Step 2: Extract LaTeX
-        run(f"{PYTHON} helpers/extract_latex_text.py --input {base} --output {base} --append", latex_log)
+        run(f"{PYTHON} helpers/extract_latex_text.py --input {base_str} --output {base_str} --append", latex_log)
 
         # Step 3: Extract Theorems
-        run(f"{PYTHON} helpers/extract_theorems.py --input {base} --output {base} --append", thm_log)
+        run(f"{PYTHON} helpers/extract_theorems.py --input {base_str} --output {base_str} --append", thm_log)
 
         # Step 4: Generate QA
-        run(f"{PYTHON} helpers/generate_qa.py --input {base} --output {base} --append", qa_log)
+        run(f"{PYTHON} helpers/generate_qa.py --input {base_str} --output {base_str} --append", qa_log)
 
         qa_now = count_rows(qa_dir)
         new_qas = qa_now - qa_prev
@@ -139,9 +147,7 @@ def process_month(topic: str, yr: int, mo: int, papers_step: int, output_root: P
         main_log_fh.write(f"New QA pairs generated: {new_qas}\n")
         main_log_fh.write(f"Total QA pairs available: {qa_now}\n")
 
-        if new_papers == 0 and new_qas == 0:
-            main_log_fh.write(f"\nNo new papers or QAs, assuming month exhausted.\n")
-            break
+        
 
         # Close logs for this iteration
         arxiv_log.close()
@@ -204,5 +210,5 @@ if __name__ == "__main__":
     main()
 
 '''
-python monthly_qa_pipeline.py --year 2024 --start 5 --end 12
+
 '''
