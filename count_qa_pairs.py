@@ -138,5 +138,5 @@ if __name__ == "__main__":
     main()
 
 '''
-python read_count_qa_pairs.py --input output --json_out qa_summary.json --show_subcats True
+python count_qa_pairs.py --input output --json_out qa_count.json --show_subcats True
 '''
