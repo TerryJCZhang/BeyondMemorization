@@ -63,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description="Count QA pairs in all qa_pairs folders under a root directory. " \
                                                     "Only works with a structure like root/category/year/month/qa_pairs.")
     parser.add_argument("--input", type=str, default="output", help="Root directory to search for qa_pairs folders")
-    parser.add_argument("--json_out", type=str, default="qa_count.json", help="Optional: Path to save JSON summary")
+    parser.add_argument("--json_out", type=str, default=None, help="Optional: Path to save JSON summary")
     parser.add_argument("--show_subcats", type=bool, default=False, help="Display subcategories in the summary")
     args = parser.parse_args()
 
@@ -138,5 +138,5 @@ if __name__ == "__main__":
     main()
 
 '''
-python count_qa_pairs.py --input output --json_out qa_count.json --show_subcats True
+python count_qa_pairs.py --input output --json_out qa_count.json --show_subcats False
 '''
