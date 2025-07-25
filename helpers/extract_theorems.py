@@ -106,7 +106,7 @@ class TheoremExtractor:
         def _extract_section_data(latex_text):
             """Helper method to extract section numbers and positions."""
             section_data = []
-            section_pattern = r'\\section\s*(?:\[.*?\])?\s*{([^}]*)}'
+            section_pattern = r'\\section\s*(?:\[.*?\])?\s*\{([^}]*)\}'
             section_matches = re.finditer(section_pattern, latex_text)
             
             current_section_num = 0
@@ -131,12 +131,12 @@ class TheoremExtractor:
         def _get_theorem_patterns(latex_text):
             """Helper method to define theorem patterns and find custom environments."""
             # Base patterns for standard theorem environments
-            patterns = {'theorem': r'\\begin{theorem}(.*?)\\end{theorem}'}
-            numbered_patterns = {'theorem': r'\\begin{theorem}\[([^]]+)\](.*?)\\end{theorem}'}
+            patterns = {'theorem': r'\\begin\{theorem\}(.*?)\\end\{theorem\}'}
+            numbered_patterns = {'theorem': r'\\begin\{theorem\}\[([^]]+)\](.*?)\\end\{theorem\}'}
             
             # Find custom theorem environments
             custom_theorem_envs = []
-            custom_pattern = r'\\newtheorem{([^}]+)}{([^}]+)}'
+            custom_pattern = r'\\newtheorem\{([^}]+)\}\{([^}]+)\}'
             
             for match in re.finditer(custom_pattern, latex_text):
                 env_name = match.group(1)
@@ -149,8 +149,10 @@ class TheoremExtractor:
                     })
                     
                     # Add custom environment patterns
-                    patterns[env_name] = r'\\begin{' + env_name + r'}(.*?)\\end{' + env_name + r'}'
-                    numbered_patterns[env_name] = r'\\begin{' + env_name + r'}\[([^]]+)\](.*?)\\end{' + env_name + r'}'
+                    patterns[env_name] = r'\\begin\{' + env_name + r'\}(.*?)\\end\{' + env_name + r'\}'
+                    numbered_patterns[env_name] = (
+                        r'\\begin\{' + env_name + r'\}\[([^]]+)\](.*?)\\end\{' + env_name + r'\}'
+                    )
             
             return patterns, numbered_patterns, custom_theorem_envs
         
@@ -265,26 +267,24 @@ class TheoremExtractor:
                     
                     # Set of patterns to find theorem numbers
                     num_patterns = [
-                        # Check for theorem reference with label
-                        (r'\\ref{' + re.escape(label) + r'}[\s\n]*([0-9.]+)', lambda m: m.group(1)) if label else (None, None),
-                        # Check for \label with numbering
-                        (r'\\label{(?:theorem|thm)(?::|_|\-)([0-9.]+)', lambda m: m.group(1)),
-                        (r'\\label{(?:th|theorem|Theorem):?([0-9.]+(?:\.[0-9]+)?)', lambda m: m.group(1)),
-                        # Check for theorem tag
-                        (r'\\tag{\(?([^}]+)\)?}', lambda m: m.group(1)),
-                        # Check for explicit reference in text
-                        (r'(?:Theorem|theorem)[\s~]*(?:\\ref{[^}]*}|([0-9.]+))', lambda m: m.group(1) if m.group(1) else None),
-                        # Check for theorem numbering in text
+                        (r'\\ref\{' + re.escape(label) + r'\}[\s\n]*([0-9.]+)', lambda m: m.group(1)) if label else (None, None),
+                        (r'\\label\{(?:theorem|thm)(?::|_|\-)([0-9.]+)\}', lambda m: m.group(1)),
+                        (r'\\label\{(?:th|theorem|Theorem):?([0-9.]+(?:\.[0-9]+)?)\}', lambda m: m.group(1)),
+                        (r'\\tag\{\(?([^}]+)\)?\}', lambda m: m.group(1)),
+                        (r'(?:Theorem|theorem)[\s~]*(?:\\ref\{[^}]*\}|([0-9.]+))', lambda m: m.group(1) if m.group(1) else None),
                         (r'(?:Theorem|theorem)[\s~]*([0-9]+\.[0-9]+)', lambda m: m.group(1)),
-                        (r'(?:Theorem|theorem)[\s~]*([0-9]+)', lambda m: m.group(1))
+                        (r'(?:Theorem|theorem)[\s~]*([0-9]+)', lambda m: m.group(1)),
                     ]
-                    
-                    # Try all patterns to find a theorem number
+                    # Try all patterns to find a theorem number, with regex error handling
                     theorem_number = None
                     for pattern, extract in num_patterns:
                         if pattern is None:
                             continue
-                        number_match = re.search(pattern, surrounding_text, re.IGNORECASE)
+                        try:
+                            number_match = re.search(pattern, surrounding_text, re.IGNORECASE)
+                        except re.error as regex_err:
+                            console.print(f"[red]Invalid regex pattern {pattern!r}: {regex_err}[/red]")
+                            continue
                         if number_match and extract(number_match):
                             theorem_number = extract(number_match)
                             break

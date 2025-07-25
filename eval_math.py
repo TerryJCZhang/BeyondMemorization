@@ -1,5 +1,5 @@
 """
-Math QA Evaluator: Evaluate LLM Performance on scientific Problem-Solving
+QA Evaluator: Evaluate LLM Performance on scientific Problem-Solving
 
 This script evaluates the performance of Language Models (LLMs) on scientific
 question-answering tasks using a dataset generated from scientific papers.
@@ -17,7 +17,7 @@ The script supports accessing models through:
 
 Usage:
   # Evaluate a model
-  python math_qa_evaluator.py --dataset <path> --model <model_name> [--sample <n>] [--verbose]
+  python eval_math.py --dataset path/to/your/qa_data --output path/to/save/results --model <model_name> [--sample <n>] [--verbose]
 
 Dependencies:
   - datasets (for loading the dataset)
@@ -40,6 +40,7 @@ from tqdm import tqdm
 import numpy as np
 from datasets import load_from_disk
 import asyncio  # Added for async support
+from contextlib import contextmanager
 
 # Import rich console for better formatting
 from rich.console import Console
@@ -47,18 +48,6 @@ from rich.panel import Panel
 
 console = Console()
 
-try:
-    from datasets import load_dataset
-
-    HF_AVAILABLE = True
-except ImportError:
-    console.print(
-        "[bold red]Hugging Face Datasets not installed properly. HF datasets will not be available.[/bold red]"
-    )
-    console.print(
-        "[yellow]To enable HF datasets, install with: pip install datasets[/yellow]"
-    )
-    HF_AVAILABLE = False
 # use dotenv to load the api keys
 from dotenv import load_dotenv
 
@@ -138,7 +127,7 @@ OPENROUTER_MODELS = {
 }
 
 
-class MathQAEvaluator:
+class QAEvaluator:
     """
     A class for evaluating LLM performance on scientific question-answering tasks.
 
@@ -167,7 +156,9 @@ class MathQAEvaluator:
         self.async_anthropic_client = None  # Added async client
         self.openrouter_client = None
         if OPENAI_AVAILABLE:
-            self.openai_client = OpenAI(api_key=self.openai_api_key)
+            self.openai_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
+            ) # Use OpenRouter client for OpenAI models
         if ANTHROPIC_AVAILABLE:
             self.anthropic_client = anthropic.Anthropic(api_key=self.anthropic_api_key)
             self.async_anthropic_client = AsyncAnthropic(
@@ -191,53 +182,21 @@ class MathQAEvaluator:
             dataset: The loaded dataset.
         """
         dataset = None
-        # First try to load from Hugging Face
-        if HF_AVAILABLE and (
-            dataset_path.startswith("ethz-spylab/") or "/" in dataset_path
-        ):
-            try:
-                if self.verbose:
-                    console.print(
-                        f"[yellow]Attempting to load dataset from Hugging Face: {dataset_path}[/yellow]"
-                    )
-                if subset == "stackexchange":
-                    dataset = load_dataset(dataset_path)
-                else:
-                    dataset = load_dataset(dataset_path, split=subset)
-                # Convert to regular dataset (not DatasetDict)
-                if isinstance(dataset, dict):
-                    if "train" in dataset:
-                        dataset = dataset["train"]
-                    else:
-                        # Use the first split
-                        dataset = dataset[list(dataset.keys())[0]]
-                console.print(
-                    f"[green]Successfully loaded dataset from Hugging Face: {dataset_path}[/green]"
-                )
-            except Exception as e:
-                console.print(
-                    f"[bold red]Error loading from Hugging Face: {e}[/bold red]"
-                )
-                console.print(
-                    "[yellow]Falling back to local dataset loading...[/yellow]"
-                )
 
-        # If HF loading failed or not a HF path, try loading from disk
-        if dataset is None:
-            try:
-                if self.verbose:
-                    console.print(
-                        f"[yellow]Attempting to load dataset from disk: {dataset_path}[/yellow]"
-                    )
-                dataset = load_from_disk(dataset_path)
+        try:
+            if self.verbose:
                 console.print(
-                    f"[green]Successfully loaded dataset from disk: {dataset_path}[/green]"
+                    f"[yellow]Attempting to load dataset from disk: {dataset_path}[/yellow]"
                 )
-            except Exception as e:
-                console.print(
-                    f"[bold red]Error loading dataset from disk: {e}[/bold red]"
-                )
-                return None
+            dataset = load_from_disk(dataset_path)
+            console.print(
+                f"[green]Successfully loaded dataset from disk: {dataset_path}[/green]"
+            )
+        except Exception as e:
+            console.print(
+                f"[bold red]Error loading dataset from disk: {e}[/bold red]"
+            )
+            return None
 
         # Handle sample size - use full dataset if sample_size is 0
         if sample_size and sample_size > 0 and sample_size < len(dataset):
@@ -333,7 +292,7 @@ class MathQAEvaluator:
         if not ANTHROPIC_AVAILABLE or not self.anthropic_client:
             return "Error: Anthropic client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
+        system_prompt = """You are an expert research scientist tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
         Your answer should be precise, rigorous, and use proper scientific notation.
         
@@ -427,7 +386,7 @@ class MathQAEvaluator:
         if not ANTHROPIC_AVAILABLE or not self.async_anthropic_client:
             return "Error: Anthropic client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
+        system_prompt = """You are an expert research scientist tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
         Your answer should be precise, rigorous, and use proper scientific notation.
         
@@ -554,7 +513,7 @@ class MathQAEvaluator:
         if not OPENROUTER_AVAILABLE or not self.openrouter_client:
             return "Error: OpenRouter client not available"
 
-        system_prompt = """You are an expert mathematician tasked with solving a scientific problem.
+        system_prompt = """You are an expert research scientist tasked with solving a scientific problem.
         Provide a clear, step-by-step solution to the question based on the provided context.
         Your answer should be precise, rigorous, and use proper scientific notation.
         
@@ -695,13 +654,13 @@ class MathQAEvaluator:
                 console.print("LaTeX content successfully compiled with pdflatex")
             final_answer = fixed_answer
         else:
-            # If compilation failed, try to fix the LaTeX with GPT-4o
+            # If compilation failed, try to fix the LaTeX with GPT-4.1
             if not OPENAI_AVAILABLE or not self.openai_client:
                 if self.verbose:
                     console.print("OpenAI client not available for LaTeX fixing")
             else:
                 try:
-                    system_prompt = """You are an expert in LaTeX. Your task is to review an answer from a mathematics problem and ensure it can be directly rendered in standard LaTeX without requiring custom command definitions.
+                    system_prompt = """You are an expert in LaTeX. Your task is to review an answer from a science problem and ensure it can be directly rendered in standard LaTeX without requiring custom command definitions.
                     
                     For any issues in the LaTeX:
                     1. Fix improper math environment delimiters (ensure all $ and \\[ \\] are properly paired)
@@ -715,7 +674,7 @@ class MathQAEvaluator:
                     
                     Respond ONLY with the corrected text. Do not explain your changes or add any comments."""
 
-                    user_prompt = f"""The following is an answer to a mathematics problem that may contain LaTeX errors or non-standard commands:
+                    user_prompt = f"""The following is an answer to a science problem that may contain LaTeX errors or non-standard commands:
 
                     {final_answer}
                     
@@ -724,7 +683,7 @@ class MathQAEvaluator:
                     Only make changes necessary for proper LaTeX rendering. Don't change the scientific content or meaning."""
 
                     response = self.openai_client.chat.completions.create(
-                        model="gpt-4o",
+                        model="gpt-4.1",
                         messages=[
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt},
@@ -823,7 +782,7 @@ class MathQAEvaluator:
     def evaluate_answer(self, answer_data, ground_truth, question):
         """
         Evaluate the correctness of the generated answer against the ground truth
-        using GPT-4o as a judge.
+        using GPT-4.1 as a judge.
 
         Args:
             answer_data (str): The generated answer.
@@ -838,12 +797,12 @@ class MathQAEvaluator:
 
         final_answer = answer_data
 
-        system_prompt = """You are an expert mathematician tasked with evaluating the correctness of an answer to a scientific question.
-        
-        Compare the generated answer to the ground truth answer and determine whether the generated answer is scientificly correct
+        system_prompt = """You are an expert research scientist tasked with evaluating the correctness of an answer to a scientific question.
+
+        Compare the generated answer to the ground truth answer and determine whether the generated answer is scientifically correct
         and equivalent to the ground truth.
         
-        Please be very strict and rigorous in your evaluation, mark the answer as incorrect even if it is 80% or 90% correct.
+        Please be very strict and rigorous in your evaluation.
         Ensure the generated answer can be directly rendered in standard LaTeX without requiring custom command definitions.
         Be precise and focus on scientific correctness, not formatting or style differences.
         Your evaluation should be fair and consider that the same scientific content can be expressed in different ways."""
@@ -856,18 +815,18 @@ class MathQAEvaluator:
         
         GENERATED ANSWER:
         {final_answer}
-        
-        Carefully evaluate whether the generated answer is scientificly correct 
+
+        Carefully evaluate whether the generated answer is scientifically correct
         and equivalent to the ground truth. Your response should only contain a JSON object with the following fields:
         {{
           "is_correct": boolean,
           "explanation": "A concise explanation of why the answer is correct or incorrect, in a clean LaTeX format"
         }}
-        where is_correct is true if the answer is scientificly correct and equivalent to the ground truth, and false if it isn't."""
+        where is_correct is true if the answer is scientifically correct and equivalent to the ground truth, and false if it isn't."""
 
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -979,10 +938,10 @@ class MathQAEvaluator:
             tqdm(dataset, desc=f"Evaluating {model_name}", disable=not self.verbose)
         ):
             context = example.get("context", "") if use_context else ""
-            theorem_content = example["theorem"]
-            question = example["question"]
-            ground_truth = example["answer"]
-            paper_link = example["paper_link"]
+            theorem_content = example.get("theorem")
+            question = example.get("question")
+            ground_truth = example.get("answer")
+            paper_link = example.get("paper_link")
 
             # Query model for answer
             if self.verbose:
@@ -1028,6 +987,9 @@ class MathQAEvaluator:
             result = {
                 "question_id": i,
                 "paper_link": paper_link,
+                'paper_id': example.get('paper_id'),
+                'paper_domain': example.get('paper_domain'),
+                'paper_citations': example.get('paper_citations'),
                 "theorem": theorem_content,
                 "question": question,
                 "ground_truth": ground_truth,
@@ -1141,6 +1103,9 @@ class MathQAEvaluator:
             result = {
                 "question_id": i,
                 "paper_link": paper_link,
+                'paper_id': example.get('paper_id'),
+                'paper_domain': example.get('paper_domain'),
+                'paper_citations': example.get('paper_citations'),
                 "theorem": theorem_content,
                 "question": question,
                 "ground_truth": ground_truth,
@@ -1217,6 +1182,32 @@ class MathQAEvaluator:
             console.print(f"[green]Results saved to {output_path}[/green]")
 
         return output_path
+    
+
+@contextmanager
+def log_to_file(log_path):
+    """Context manager to tee console.print output to a file as well as the console."""
+
+    file_console = Console(file=open(log_path, "w", encoding="utf-8"))
+    orig_print = console.print
+
+    def tee_print(*args, **kwargs):
+        orig_print(*args, **kwargs)
+        file_console.print(*args, **kwargs)
+
+    console.print = tee_print
+    try:
+        yield
+    finally:
+        console.print = orig_print
+        file_console.file.close()
+    
+def find_qa_pairs_dirs(root_dir):
+    qa_dirs = []
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        if os.path.basename(dirpath) == "qa_pairs":
+            qa_dirs.append(dirpath)
+    return qa_dirs
 
 
 def main():
@@ -1227,22 +1218,14 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="ethz-spylab/arxiv_math_bench",
-        help="Path to dataset or Hugging Face dataset ID. "
+        default="data/",
+        help="Path to dataset directory. "
         "Format: 'organization/dataset_name' for Hugging Face, or local path for disk storage.",
-    )
-    # subset of the dataset
-    parser.add_argument(
-        "--subset",
-        type=str,
-        choices=["math", "cs", "stackexchange"],
-        default="stackexchange",
-        help="Subset of the dataset to evaluate on. Available options: math, cs, stackexchange",
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4o",
+        default="deepseek-r1",
         help="Model to evaluate. Available options: "
         + ", ".join(
             list(OPENAI_MODELS.keys())
@@ -1258,6 +1241,7 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
+        default="eval_results/",
         help="Path to save results JSON file (default: auto-generated based on model and timestamp)",
     )
     parser.add_argument(
@@ -1295,87 +1279,85 @@ def main():
         Panel(
             "This tool evaluates LLM performance on scientific question-answering tasks.\n"
             "It works by prompting the LLM with a scientific problem and evaluating its answer against the ground truth.",
-            title="Math QA Evaluator",
+            title="QA Evaluator",
             border_style="blue",
         )
     )
 
-    # Create an instance of MathQAEvaluator
-    evaluator = MathQAEvaluator(verbose=args.verbose)
-
-    # Load the dataset
-    dataset = evaluator.load_dataset(
-        args.dataset, sample_size=args.sample, subset=args.subset
+    console.print(
+        "[yellow]Warning: Using OpenRouter client for OpenAI models. "
+        "Ensure you have the OpenRouter API key set up correctly.[/yellow]"
     )
 
-    if dataset is None:
-        console.print(
-            f"[bold red]Error: Could not load dataset from {args.dataset}[/bold red]"
-        )
+    evaluator = QAEvaluator(verbose=args.verbose)
+    qa_dirs = find_qa_pairs_dirs(args.dataset)
+    if not qa_dirs:
+        console.print(f"[red]No qa_pairs folders found in {args.dataset}[/red]")
         return
+    
+    console.print(f"[bold]Found {len(qa_dirs)} qa_pairs directories:[/bold]")
 
-    console.print(
-        f"[green]Successfully loaded dataset '{args.dataset}' with {len(dataset)} examples[/green]"
-    )
-
-    # Single model evaluation mode
-    console.print(f"\n[bold]Evaluating {args.model} on {len(dataset)} examples[/bold]")
-    if args.no_context:
-        console.print(
-            "[yellow]Mode: No context provided (testing raw LLM knowledge)[/yellow]"
-        )
-    else:
-        console.print("[green]Mode: Using provided context[/green]")
-
-    # Run evaluation
-    metrics = evaluator.run_evaluation(
-        dataset,
-        args.model,
-        use_context=not args.no_context,
-        use_thinking=args.use_thinking,
-        parallel=args.parallel,
-    )
-
-    # Print summary results
-    console.print(
-        Panel(
-            f"[bold]Model:[/bold] {args.model}\n"
-            f"[bold]Dataset size:[/bold] {metrics['dataset_size']}\n"
-            f"[bold]Context used:[/bold] {metrics['context_used']}\n"
-            f"[bold]Parallel execution:[/bold] {metrics.get('parallel_execution', False)}\n"
-            f"[bold]Accuracy:[/bold] {metrics['accuracy']:.4f} ({metrics['correct_count']}/{metrics['dataset_size']})\n"
-            f"[bold]Correct question IDs:[/bold] {metrics['correct_ids']}",
-            title="Evaluation Results",
-            border_style="green",
-        )
-    )
-
-    # Save results
-    if args.output:
-        if not os.path.exists(args.output):
-            os.makedirs(args.output, exist_ok=True)
+    for qa_dir in qa_dirs:
+        rel_path = os.path.relpath(qa_dir, args.dataset)
+        output_dir = os.path.join(args.output, os.path.dirname(rel_path))
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        log_path = os.path.join(output_dir, f"{timestamp}_log.txt")
+        output_path = os.path.join(output_dir, f"{args.model}_eval_{timestamp}.json")
 
         if args.no_context:
-            output_path = (
-                f"{args.output}/{args.model}_wo_context_{args.num_run}run.jsonl"
-            )
-        else:
-            output_path = (
-                f"{args.output}/{args.model}_w_context_{args.num_run}run.jsonl"
-            )
-
+            output_path = output_path.replace(".json", "_wo_context.json")
+    
         if args.use_thinking:
-            output_path = output_path.replace(".jsonl", "_thinking.jsonl")
+            output_path = output_path.replace(".json", "_thinking.json")
 
-        results_path = evaluator.save_results(metrics, output_path)
-    else:
-        # Default save behavior if no output path provided
-        results_path = evaluator.save_results(metrics)
+        console.print(f"\n[bold]Evaluating {args.model} on: {qa_dir}[/bold]")
 
-    console.print(
-        f"\n[bold green]Detailed results saved to:[/bold green] {results_path}"
-    )
+        with log_to_file(log_path):
+            console.print(f"\n[bold]Evaluating {args.model} on: {qa_dir}[/bold]")
+
+            if args.no_context:
+                console.print(
+                    "[yellow]Mode: No context provided (testing raw LLM knowledge)[/yellow]"
+                )
+            else:
+                console.print("[green]Mode: Using provided context[/green]")
+
+            dataset = evaluator.load_dataset(qa_dir, sample_size=args.sample)
+            if dataset is None or len(dataset) == 0:
+                console.print(f"[yellow]Skipping empty or invalid dataset: {qa_dir}[/yellow]")
+                continue
+
+            metrics = evaluator.run_evaluation(
+                dataset,
+                args.model,
+                use_context=not args.no_context,
+                use_thinking=args.use_thinking,
+                parallel=args.parallel,
+            )
+
+            evaluator.save_results(metrics, output_path)
+
+            # Print summary results
+            console.print(
+                Panel(
+                    f"[bold]Model:[/bold] {args.model}\n"
+                    f"[bold]Dataset size:[/bold] {metrics['dataset_size']}\n"
+                    f"[bold]Context used:[/bold] {metrics['context_used']}\n"
+                    f"[bold]Parallel execution:[/bold] {metrics.get('parallel_execution', False)}\n"
+                    f"[bold]Accuracy:[/bold] {metrics['accuracy']:.4f} ({metrics['correct_count']}/{metrics['dataset_size']})\n"
+                    f"[bold]Correct question IDs:[/bold] {metrics['correct_ids']}",
+                    title="Evaluation Results",
+                    border_style="green",
+                )
+            )
+
+        console.print(f"[green]Saved evaluation results to {output_path}[/green]")
 
 
 if __name__ == "__main__":
     main()
+
+'''
+python eval_math.py --dataset data --output eval_results --model deepseek-r1
+'''
