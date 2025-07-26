@@ -161,12 +161,12 @@ class ArxivLatexExtractor:
                 existing_dataset = Dataset.load_from_disk(output_path)
                 # Create a new dictionary combining existing and new data
                 final_data = {
-                    'id': existing_dataset['id'] + batch_data['id'],
-                    'category': existing_dataset['category'] + batch_data['category'],
-                    'citations': existing_dataset['citations'] + batch_data['citations'],
-                    'paper_link': existing_dataset['paper_link'] + batch_data['paper_link'],
-                    'title': existing_dataset['title'] + batch_data['title'],
-                    'full_text': existing_dataset['full_text'] + batch_data['full_text']
+                    'id': list(existing_dataset['id']) + batch_data['id'],
+                    'category': list(existing_dataset['category']) + batch_data['category'],
+                    'citations': list(existing_dataset['citations']) + batch_data['citations'],
+                    'paper_link': list(existing_dataset['paper_link']) + batch_data['paper_link'],
+                    'title': list(existing_dataset['title']) + batch_data['title'],
+                    'full_text': list(existing_dataset['full_text']) + batch_data['full_text']
                 }
                 logger.info(f"Appended {len(batch_data['id'])} new papers to existing dataset with {len(existing_dataset)} papers")
             except Exception as e:
