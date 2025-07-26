@@ -939,7 +939,7 @@ def main():
                 output_path=output_path,
                 sample_papers=args.sample_papers,
                 skip_appendix=not args.include_appendix,
-                max_concurrent=5  #whatever concurrency you want
+                max_concurrent=60  #whatever concurrency you want
             ))
         else:
             console.print("[yellow]Running in sequential mode[/yellow]")

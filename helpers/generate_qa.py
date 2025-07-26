@@ -797,7 +797,7 @@ def main():
                 input_dataset=input_dataset,
                 output_path=output_path,
                 sample_theorems=args.sample_theorems,
-                max_concurrent=5  # Limit concurrent requests to avoid rate limits
+                max_concurrent=40  # Limit concurrent requests to avoid rate limits
             ))
         else:
             console.print("[yellow]Running in sequential mode...[/yellow]")
@@ -811,7 +811,7 @@ def main():
         if args.filter_trivial:
             console.print("[yellow]Filtering trivial samples from the dataset...[/yellow]")
             if args.run_parallel:
-                dataset = asyncio.run(async_filter_trivial_samples(dataset, max_concurrent=5))
+                dataset = asyncio.run(async_filter_trivial_samples(dataset, max_concurrent=60)) # Limit concurrent requests to avoid rate limits
             else:
                 dataset = filter_trivial_samples(dataset)
 

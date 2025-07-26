@@ -9,6 +9,7 @@ import os
 import json
 from collections import defaultdict
 from datasets import load_from_disk
+import tiktoken
 
 SUBCAT_EXPANSIONS = {
     "physics": [
@@ -58,6 +59,30 @@ def parse_metadata_from_path(path, root_dir):
         category, year, month = parts[-4], parts[-3], parts[-2]
     return category, year, month
 
+def count_tokens(text, model="gpt-4-1106-preview"):
+    """
+    Count tokens in a string using tiktoken for a given model.
+    """
+    try:
+        enc = tiktoken.encoding_for_model(model)
+    except KeyError:
+        enc = tiktoken.get_encoding("cl100k_base")  # fallback
+    return len(enc.encode(text))
+
+def check_tokens_limit(example, limit=200000, model="gpt-4-1106-preview"):
+    """
+    Return True if the QA pair exceeds the token limit for the given model.
+    """
+    question = example.get("question", "")
+    answer = example.get("answer", "")
+    context = example.get("context", "")
+    total_tokens = (
+        count_tokens(question, model=model)
+        + count_tokens(answer, model=model)
+        + count_tokens(context, model=model)
+    )
+    return total_tokens > limit
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Count QA pairs in all qa_pairs folders under a root directory. " \
@@ -65,6 +90,7 @@ def main():
     parser.add_argument("--input", type=str, default="output", help="Root directory to search for qa_pairs folders")
     parser.add_argument("--json_out", type=str, default=None, help="Optional: Path to save JSON summary")
     parser.add_argument("--show_subcats", type=bool, default=False, help="Display subcategories in the summary")
+    parser.add_argument("--show_exceed_tokens", type=bool, default=False, help="Display examples exceeding token limits")
     args = parser.parse_args()
 
     root_dir = args.input
@@ -77,6 +103,7 @@ def main():
     summary = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     month_totals = defaultdict(int)
     cat_totals = defaultdict(lambda: defaultdict(int))  # month -> cat -> total
+    exceeded_counts = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))  # month -> cat -> subcat -> count_exceeded
 
     for qa_dir in qa_dirs:
         try:
@@ -96,6 +123,11 @@ def main():
         month_totals[month_key] += count
         cat_totals[month_key][cat] += count
 
+        if args.show_exceed_tokens:
+            for i, example in enumerate(ds):
+                if check_tokens_limit(example):
+                    exceeded_counts[month_key][cat][subcat] += 1
+
     # Print summary
     print("\n========== QA PAIRS SUMMARY ==========")
     for month in sorted(summary.keys()):
@@ -105,6 +137,19 @@ def main():
             if args.show_subcats:
                 for subcat in sorted(summary[month][cat].keys()):
                     print(f"      * {subcat}: {summary[month][cat][subcat]}")
+
+    if args.show_exceed_tokens:
+        print("\n========== QA PAIRS EXCEEDING TOKEN LIMIT ==========")
+        for month in sorted(exceeded_counts.keys()):
+            print(f"\n[ {month} ]")
+            for cat in sorted(exceeded_counts[month].keys()):
+                if args.show_subcats:
+                    for subcat in sorted(exceeded_counts[month][cat].keys()):
+                        print(f"      * {cat}/{subcat}: {exceeded_counts[month][cat][subcat]}")
+                else:
+                    # Sum over all subcats for this cat
+                    total_exceeded = sum(exceeded_counts[month][cat].values())
+                    print(f"  - {cat}: {total_exceeded}")
 
     # Save as JSON if requested
     if args.json_out:
@@ -118,7 +163,8 @@ def main():
         out_json = {
             "by_month": dictify(summary),
             "month_totals": dict(month_totals),
-            "cat_totals": {m: dict(c) for m, c in cat_totals.items()}
+            "cat_totals": {m: dict(c) for m, c in cat_totals.items()},
+            "exceeded_counts": dictify(exceeded_counts)
         }
 
         for month in summary:
@@ -138,5 +184,5 @@ if __name__ == "__main__":
     main()
 
 '''
-python count_qa_pairs.py --input output --json_out qa_count.json --show_subcats False
+python count_qa_pairs.py --input output --json_out qa_count.json --show_exceed_tokens True --show_subcats False
 '''
