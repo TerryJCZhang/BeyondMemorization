@@ -31,6 +31,7 @@ import tempfile, shutil
 import subprocess
 from datasets import Dataset, load_from_disk, concatenate_datasets
 import openai
+import asyncio
 from tqdm import tqdm
 from dotenv import load_dotenv
 from rich.console import Console
@@ -42,7 +43,7 @@ load_dotenv()
 console = Console()
 
 # Default API key from environment variable
-DEFAULT_API_KEY = os.getenv("OPENAI_API_KEY")
+DEFAULT_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 def setup_random_seed(seed=42):
     """
@@ -65,7 +66,7 @@ class QAGenerator:
     3. Save the resulting QA pairs to a new dataset
     """
     
-    def __init__(self, api_key=DEFAULT_API_KEY):
+    def __init__(self, api_key=DEFAULT_API_KEY, run_parallel=False):
         """
         Initialize the QAGenerator.
         
@@ -73,7 +74,16 @@ class QAGenerator:
             api_key (str): API key for LLM access
         """
         self.api_key = api_key
-        self.client = openai.OpenAI(api_key=self.api_key)
+        if run_parallel:
+            self.client = openai.AsyncOpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
+        else:
+            self.client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
         
     def generate_qa_pair(self, theorem):
         """
@@ -144,6 +154,66 @@ class QAGenerator:
             console.print(f"[bold red]Error generating QA pair: {e}[/bold red]")
             return default_result
     
+    async def async_generate_qa_pair(self, theorem):
+        """
+        Generate a question-answer pair from a theorem in an asynchronous manner.
+        """
+        default_result = {
+            "question": "",
+            "answer": "",
+            "is_good_qa": "false"
+        }
+        try:
+            user_prompt = f"""Please create a question-answer pair from this theorem:
+            THEOREM:
+            {theorem}
+            
+            Generate a question-answer pair based on this theorem.
+            
+            IMPORTANT: Make sure both the question and answer are formatted in proper LaTeX syntax:
+            1. All symbolic expressions must be enclosed in $ for inline math or $$ or \\[ \\] for display math
+            2. Use standard LaTeX commands for mathematical symbols
+            3. Format the output to directly render in a LaTeX environment
+            
+            Never mention the answer in the question statement.
+            Return your output strictly in the following JSON format:
+            {{
+                "question": "Clearly stated question derived from the theorem with a unique answer. if the theorem is not good, return an empty string",
+                "answer": "The unique answer derived from the theorem. if the theorem is not good, return an empty string",
+                "is_good_qa": "true" if the question-answer pair is good, otherwise "false"
+            }}
+            """
+
+            # Call the LLM to generate a QA pair with retries
+            iteration = 0
+
+            while True:
+                iteration += 1
+
+                response = await self.client.chat.completions.create(
+                    model="o4-mini-2025-04-16",
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT_GENERATE_QA_FROM_THEOREMS_DATASET},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                )
+
+                response_content = response.choices[0].message.content
+                result = json.loads(response_content)
+
+                if all(key in result for key in default_result.keys()) and result['is_good_qa'] == 'true':
+                    break
+                if iteration > 5:
+                    console.print(f"[bold red]Failed to return good QA pair after {iteration} attempts[/bold red]")
+                    return default_result
+                
+            return result
+        
+        except Exception as e:
+            console.print(f"[bold red]Error generating QA pair: {e}[/bold red]")
+            return default_result
+
     def process_dataset(self, input_dataset, output_path, sample_theorems=None):
         """
         Process a dataset of theorems to generate QA pairs.
@@ -235,6 +305,88 @@ class QAGenerator:
         )
         
         return output_dataset
+    
+    async def async_process_dataset(self, input_dataset, output_path, sample_theorems=None, max_concurrent=5):
+        """
+        Process a dataset of theorems to generate QA pairs asynchronously.
+
+        Args:
+            input_dataset (Dataset): Dataset containing theorems
+            output_path (str): Path to save the output QA dataset
+            sample_theorems (int, optional): Number of theorems to process
+            max_concurrent (int, optional): Maximum number of concurrent requests
+
+        Returns:
+            Dataset: Dataset of QA pairs
+        """
+        input_dataset = input_dataset.shuffle(seed=42)
+        console.print(f"[green]Loaded {len(input_dataset)} theorems[/green]")
+        if sample_theorems:
+            input_dataset = input_dataset.select(range(min(sample_theorems, len(input_dataset))))
+            console.print(f"[yellow]Sampled {len(input_dataset)} theorems for processing[/yellow]")
+
+        # Output containers
+        paper_links, paper_ids, paper_domains, paper_citations = [], [], [], []
+        theorems, questions, answers, contexts = [], [], [], []
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_one(i, entry):
+            async with semaphore:
+                theorem = entry['theorem']
+                paper_link = entry['paper_link']
+                context = entry['context']
+                qa_pair = await self.async_generate_qa_pair(theorem)
+                if qa_pair['question'] and qa_pair['answer']:
+                    return {
+                        'paper_link': paper_link,
+                        'paper_id': entry['paper_id'],
+                        'paper_domain': entry['paper_domain'],
+                        'paper_citations': entry['paper_citations'],
+                        'theorem': theorem,
+                        'question': qa_pair['question'],
+                        'answer': qa_pair['answer'],
+                        'context': context
+                    }
+                return None
+
+        tasks = [process_one(i, entry) for i, entry in enumerate(input_dataset)]
+        results = []
+        for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Generating QA pairs"):
+            res = await coro
+            if res:
+                paper_links.append(res['paper_link'])
+                paper_ids.append(res['paper_id'])
+                paper_domains.append(res['paper_domain'])
+                paper_citations.append(res['paper_citations'])
+                theorems.append(res['theorem'])
+                questions.append(res['question'])
+                answers.append(res['answer'])
+                contexts.append(res['context'])
+
+        output_dataset = Dataset.from_dict({
+            'paper_link': paper_links,
+            'paper_id': paper_ids,
+            'paper_domain': paper_domains,
+            'paper_citations': paper_citations,
+            'theorem': theorems,
+            'question': questions,
+            'answer': answers,
+            'context': contexts
+        })
+
+        conversion_rate = (len(questions) / len(input_dataset) * 100) if len(input_dataset) > 0 else 0.0
+        console.print(
+            Panel(
+                f"[bold green]Processing complete![/bold green]\n\n"
+                f"Total theorems processed: {len(input_dataset)}\n"
+                f"Good theorems with QA pairs: {len(questions)}\n"
+                f"Conversion rate: {conversion_rate:.1f}%",
+                title="QA Generation Results",
+                border_style="green"
+            )
+        )
+        return output_dataset
 
 
 def filter_trivial_samples(dataset):
@@ -261,8 +413,8 @@ def filter_trivial_samples(dataset):
     )
     
     # Initialize OpenAI client
-    api_key = os.getenv("OPENAI_API_KEY")
-    client = openai.OpenAI(api_key=api_key)
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    client = openai.OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
     
     # Initialize containers for filtered dataset
     filtered_paper_links = []
@@ -415,6 +567,163 @@ def filter_trivial_samples(dataset):
     
     return filtered_dataset
 
+
+async def async_filter_trivial_samples(dataset, max_concurrent=5):
+    """
+    Asynchronously filter out trivial samples from the dataset using OpenRouter API.
+    """
+    console.print(
+        Panel(
+            "Filtering trivial QA pairs from the dataset...\n"
+            "A sample is considered trivial if the answer can be easily found or guessed.",
+            title="Trivial Sample Filter",
+            border_style="yellow"
+        )
+    )
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    client = openai.AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+
+    total_samples = len(dataset)
+    non_trivial_count = 0
+
+    filtered_paper_links = []
+    filtered_paper_ids = []
+    filtered_paper_domains = []
+    filtered_paper_citations = []
+    filtered_theorems = []
+    filtered_questions = []
+    filtered_answers = []
+    filtered_contexts = []
+
+    system_prompt ="""You are a research scientist in charge of evaluating the quality of scientific question-answer pairs.
+    
+    Your job is to determine if a question-answer pair is "trivial" based on:
+    1. Whether the answer can be directly found in the context or question statement
+    2. Whether the answer can be easily guessed without deep understanding domain knowledge
+    3. Whether the answer follows trivially from the question with 1-3 formulas
+    
+    A good, non-trivial question requires deep understanding of domain knowledge, NOT JUST information retrieval.
+    """
+    
+    # Default result in case of persistent failures
+    default_result = {
+        "explanation": "Failed to evaluate due to API errors",
+        "is_trivial": "false"
+    }
+
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def process_one(i, entry):
+        async with semaphore:
+            context = entry['context']
+            question = entry['question']
+            answer = entry['answer']
+
+            approx_token_count = len(context) // 4
+            max_token_limit = 1000000
+            if approx_token_count > max_token_limit:
+                console.print(f"[red]Sample {i+1} skipped due to context length overflow: ~{approx_token_count} tokens[/red]")
+                return None
+
+            user_prompt = f"""Please evaluate if the following scientific question-answer pair is trivial:
+
+            CONTEXT:
+            {context}
+            QUESTION:
+            {question}
+            ANSWER:
+            {answer}
+            
+            A "trivial" question-answer pair means:
+            1. The answer can be directly spotted in the context or question text
+            2. The answer is easily guessed without domain knowledge
+            
+            Return your evaluation strictly in the following JSON format:
+            {{
+                "explanation": "Detailed explanation of why this sample is trivial or non-trivial",
+                "is_trivial": "true" if the sample is trivial, "false" if it requires deep scientific understanding of domain knowledge
+            }}
+            """
+
+            result = default_result
+            max_retries = 5
+            for attempt in range(1, max_retries + 1):
+                try:
+                    response = await client.chat.completions.create(
+                        model="gpt-4.1-2025-04-14",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        response_format={"type": "json_object"},
+                    )
+                    response_content = response.choices[0].message.content
+                    result = json.loads(response_content)
+                    if all(key in result for key in ["explanation", "is_trivial"]):
+                        break
+                except Exception as e:
+                    if attempt < max_retries:
+                        console.print(f"[yellow]Attempt {attempt}/{max_retries} failed: {e}. Retrying...[/yellow]")
+                    else:
+                        console.print(f"[bold red]All {max_retries} attempts failed for sample {i+1}: {e}[/bold red]")
+                        result = default_result
+
+            is_trivial = result.get('is_trivial', 'false') == 'true'
+            if not is_trivial:
+                return {
+                    'paper_link': entry['paper_link'],
+                    'paper_id': entry['paper_id'],
+                    'paper_domain': entry['paper_domain'],
+                    'paper_citations': entry['paper_citations'],
+                    'theorem': entry['theorem'],
+                    'question': question,
+                    'answer': answer,
+                    'context': context
+                }
+            return None
+
+    tasks = [process_one(i, entry) for i, entry in enumerate(dataset)]
+    for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Evaluating samples"):
+        res = await coro
+        if res:
+            filtered_paper_links.append(res['paper_link'])
+            filtered_paper_ids.append(res['paper_id'])
+            filtered_paper_domains.append(res['paper_domain'])
+            filtered_paper_citations.append(res['paper_citations'])
+            filtered_theorems.append(res['theorem'])
+            filtered_questions.append(res['question'])
+            filtered_answers.append(res['answer'])
+            filtered_contexts.append(res['context'])
+            non_trivial_count += 1
+
+    filtered_dataset = Dataset.from_dict({
+        'paper_link': filtered_paper_links,
+        'paper_id': filtered_paper_ids,
+        'paper_domain': filtered_paper_domains,
+        'paper_citations': filtered_paper_citations,
+        'theorem': filtered_theorems,
+        'question': filtered_questions,
+        'answer': filtered_answers,
+        'context': filtered_contexts
+    })
+
+    retention_rate = (non_trivial_count / total_samples * 100) if total_samples > 0 else 0.0
+
+    console.print(
+        Panel(
+            f"[bold green]Filtering complete![/bold green]\n\n"
+            f"Total samples evaluated: {total_samples}\n"
+            f"Non-trivial samples retained: {non_trivial_count}\n"
+            f"Trivial samples removed: {total_samples - non_trivial_count}\n"
+            f"Retention rate: {retention_rate:.1f}%",
+            title="Filtering Results",
+            border_style="green"
+        )
+    )
+
+    return filtered_dataset
+
 def find_all_theorems_dirs(root_dir):
     """Find all directories named "theorems" in the given root directory."""
     theorems_dirs = []
@@ -431,6 +740,7 @@ def main():
     parser.add_argument("--output", type=str, default="output", help="Root directory to save nested QA folders")
     parser.add_argument("--sample_theorems", type=int, help="Number of theorems to process")
     parser.add_argument("--filter_trivial", type=bool, default=True, help="Filter out trivial QA pairs")
+    parser.add_argument("--run_parallel", type=bool, default=True, help="Run generation in parallel")
     parser.add_argument("--append", action="store_true", help="Append to existing QA dataset instead of overwriting")
     args = parser.parse_args()
     
@@ -453,8 +763,8 @@ def main():
         return
     
     # Create an instance of QAGenerator
-    generator = QAGenerator()
-    
+    generator = QAGenerator(run_parallel=args.run_parallel)
+
     for theorems_dir in theorems_dirs:
         rel_path = os.path.relpath(theorems_dir, args.input)
         output_path = os.path.join(args.output, os.path.dirname(rel_path), "qa_pairs")
@@ -481,16 +791,29 @@ def main():
                 continue
 
         console.print(f"[bold]Processing theorems dataset: {theorems_dir}[/bold]")
-        dataset = generator.process_dataset(
-            input_dataset=input_dataset,
-            output_path=output_path,
-            sample_theorems=args.sample_theorems
-        )
+        if args.run_parallel:
+            console.print("[yellow]Running in parallel mode...[/yellow]")
+            dataset = asyncio.run(generator.async_process_dataset(
+                input_dataset=input_dataset,
+                output_path=output_path,
+                sample_theorems=args.sample_theorems,
+                max_concurrent=5  # Limit concurrent requests to avoid rate limits
+            ))
+        else:
+            console.print("[yellow]Running in sequential mode...[/yellow]")
+            dataset = generator.process_dataset(
+                input_dataset=input_dataset,
+                output_path=output_path,
+                sample_theorems=args.sample_theorems
+            )
         
         # Filter trivial samples if requested
         if args.filter_trivial:
             console.print("[yellow]Filtering trivial samples from the dataset...[/yellow]")
-            dataset = filter_trivial_samples(dataset)
+            if args.run_parallel:
+                dataset = asyncio.run(async_filter_trivial_samples(dataset, max_concurrent=5))
+            else:
+                dataset = filter_trivial_samples(dataset)
 
         # Append to existing dataset if needed
         if args.append:

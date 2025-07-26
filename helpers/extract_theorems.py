@@ -38,13 +38,14 @@ import shutil
 import tempfile
 import subprocess
 import tempfile, shutil
+import asyncio
 from prompts import SYSTEM_PROMPT_STANDARDIZE_LATEX, SYSTEM_PROMPT_THEOREM_QUALITY
 
 load_dotenv()
 console = Console()
 
 # Default API key - replace with your own or provide via argument
-DEFAULT_API_KEY = os.getenv("OPENAI_API_KEY")
+DEFAULT_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
 
@@ -71,12 +72,21 @@ class TheoremExtractor:
     3. Process datasets of papers
     """
     
-    def __init__(self):
+    def __init__(self, run_parallel=False):
         """
         Initialize the TheoremExtractor.
         """
         self.api_key = DEFAULT_API_KEY
-        self.client = openai.OpenAI(api_key=self.api_key)
+        if run_parallel:
+            self.client = openai.AsyncOpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
+        else:
+            self.client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
 
     def extract_theorems(self, latex_text):
         """
@@ -490,7 +500,75 @@ class TheoremExtractor:
             console.print(f"[bold red]Calling GPT models failed: {e}[/bold red]")
             return default_result
         
-      
+    async def async_evaluate_theorem_uniqueness(self, theorem_content):
+        """
+        Evaluate the uniqueness of a theorem using async.
+        """
+        default_result = {
+            "explanation": "",
+            "single_unique_answer": "false"
+        }
+        try:
+            user_prompt = f"""Please evaluate this scientific theorem and determine if it has a single, definitive answer:
+
+                {theorem_content}
+
+                Please explain if it has a single, definitive answer. please be very strict about the theorem, if there is any ambiguity, you should deem it as 'non-unique'.
+                Return in this exact JSON format:
+                {{
+                    "single_unique_answer": "true" if the theorem has a single, definitive answer, otherwise "false"
+                    "explanation": "explanation of if this theorem has a single, definitive answer, otherwise an empty string",
+                }}
+                """
+            iteration = 0
+            while True:
+                iteration += 1
+                response = await self.client.chat.completions.create(
+                    model="gpt-4.1-2025-04-14",
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT_THEOREM_QUALITY},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                )
+                response_content = response.choices[0].message.content
+                result = json.loads(response_content)
+                if all(key in result for key in default_result.keys()):
+                    break
+                if iteration > 5:
+                    console.print(f"[bold red]Model did not return correct keys after retries[/bold red]")
+                    return default_result
+            return result
+        except Exception as e:
+            console.print(f"[bold red]Calling OpenRouter failed: {e}[/bold red]")
+            return default_result
+        
+            
+    def _skip_appendix(self, latex_text, skip_appendix):
+        # If skip_appendix is True, extract only the main text by finding the appendix start position
+        if skip_appendix:
+            # Detect appendix sections in the document
+            appendix_positions = []
+            appendix_patterns = [
+                r'\\appendix',
+                r'\\section{Appendix}',
+                r'\\section{Appendices}',
+                r'\\section{\s*A\s+.*?}',  # Section A or Appendix A
+                r'\\section{.*?Appendix.*?}',
+                r'\\begin{appendix}',
+                r'\\part{Appendix}'
+            ]
+            
+            for pattern in appendix_patterns:
+                for match in re.finditer(pattern, latex_text, re.IGNORECASE):
+                    appendix_positions.append(match.start())
+            
+            # If we found appendix markers, truncate the latex_text to only include content before the appendix
+            if appendix_positions:
+                appendix_start = min(appendix_positions)
+                latex_text = latex_text[:appendix_start]
+        return latex_text
+        
     def process_paper(self, latex_text, skip_appendix=True, paper_link=""):
         """
         Process a LaTeX paper to extract high-quality theorems.
@@ -506,33 +584,7 @@ class TheoremExtractor:
         # Remove comments from LaTeX text
         custom_commands = self.extract_custom_commands(latex_text)
         latex_text = self.remove_latex_comments(latex_text)
-        
-        def _skip_appendix(latex_text):
-            # If skip_appendix is True, extract only the main text by finding the appendix start position
-            if skip_appendix:
-                # Detect appendix sections in the document
-                appendix_positions = []
-                appendix_patterns = [
-                    r'\\appendix',
-                    r'\\section{Appendix}',
-                    r'\\section{Appendices}',
-                    r'\\section{\s*A\s+.*?}',  # Section A or Appendix A
-                    r'\\section{.*?Appendix.*?}',
-                    r'\\begin{appendix}',
-                    r'\\part{Appendix}'
-                ]
-                
-                for pattern in appendix_patterns:
-                    for match in re.finditer(pattern, latex_text, re.IGNORECASE):
-                        appendix_positions.append(match.start())
-                
-                # If we found appendix markers, truncate the latex_text to only include content before the appendix
-                if appendix_positions:
-                    appendix_start = min(appendix_positions)
-                    latex_text = latex_text[:appendix_start]
-            return latex_text
-        
-        latex_text = _skip_appendix(latex_text)
+        latex_text = self._skip_appendix(latex_text, skip_appendix)
         
         # Extract theorems from the (possibly truncated) latex text
         theorems = self.extract_theorems(latex_text)
@@ -581,6 +633,38 @@ class TheoremExtractor:
                 "unique_answer_explanation": result_unique['explanation'],
             })
 
+        return high_quality_theorems, num_theorems
+    
+    async def async_process_paper(self, latex_text, skip_appendix=True, paper_link=""):
+        """ 
+        Process a LaTeX paper to extract high-quality theorems asynchronously.
+        """
+        custom_commands = self.extract_custom_commands(latex_text)
+        latex_text = self.remove_latex_comments(latex_text)
+        # ..._skip_appendix as before...
+        latex_text = self._skip_appendix(latex_text, skip_appendix)
+        theorems = self.extract_theorems(latex_text)
+        num_theorems = len(theorems)
+        if num_theorems == 0:
+            console.print(f"[yellow]No theorems found in the paper, skipping[/yellow]")
+            return [], 0
+
+        async def process_theorem(i, theorem):
+            context = self.get_context_before(latex_text, theorem['start_pos'])
+            result_unique = await self.async_evaluate_theorem_uniqueness(theorem['content'])
+            if result_unique['single_unique_answer'] == "false":
+                console.print(f"[yellow]Theorem {i+1} does not have a single, definitive answer, skipping[/yellow]")
+                return None
+            return {
+                "paper_link": paper_link,
+                "theorem": theorem['content'],
+                "context": context,
+                "unique_answer_explanation": result_unique['explanation'],
+            }
+
+        tasks = [process_theorem(i, thm) for i, thm in enumerate(theorems)]
+        results = await asyncio.gather(*tasks)
+        high_quality_theorems = [r for r in results if r is not None]
         return high_quality_theorems, num_theorems
 
     def process_dataset(self, input_dataset, output_path, sample_papers=None, skip_appendix=True):
@@ -698,6 +782,68 @@ class TheoremExtractor:
         
         
         return dataset
+    
+    async def async_process_dataset(self, input_dataset, output_path, sample_papers=None, skip_appendix=True, max_concurrent=5):
+    
+        semaphore = asyncio.Semaphore(max_concurrent)
+        async def process_one_paper(i, paper):
+            async with semaphore:
+                return await self.async_process_paper(paper['full_text'], skip_appendix, paper.get('paper_link', f"paper_{i}"))
+
+        tasks = [process_one_paper(i, paper) for i, paper in enumerate(input_dataset)]
+        results = []
+        for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Processing papers"):
+            result = await coro
+            results.append(result)
+
+        # Flatten results (each result is (high_quality_theorems, num_theorems))
+        all_ids = []
+        all_paper_ids = []
+        all_paper_domains = []
+        all_paper_citations = []
+        all_paper_links = []
+        all_contexts = []
+        all_theorems = []
+        all_unique_answer_explanations = []
+
+        total_theorems = 0
+        total_unique_theorems = 0
+
+        for i, (unique_theorems, num_theorems) in enumerate(results):
+            total_theorems += num_theorems
+            total_unique_theorems += len(unique_theorems)
+            # Add theorems to our collections
+            for theorem in unique_theorems:
+                all_ids.append(len(all_ids))
+                all_paper_ids.append(theorem.get('paper_id', f"paper_{i}"))
+                all_paper_domains.append(theorem.get('paper_domain', 'unknown'))
+                all_paper_citations.append(theorem.get('paper_citations', 0))
+                all_paper_links.append(theorem.get('paper_link', f"paper_{i}"))
+                all_contexts.append(theorem['context'])
+                all_theorems.append(theorem['theorem'])
+                all_unique_answer_explanations.append(theorem['unique_answer_explanation'])
+
+        console.print(
+            Panel(
+                f"[bold green]Processing complete![/bold green]\n\n"
+                f"Total papers processed: {len(results)}\n"
+                f"Total theorems found: {total_theorems}\n"
+                f"Total unique theorems found: {total_unique_theorems}\n",
+                title="Extraction Results",
+                border_style="green"
+            )
+        )
+        dataset = Dataset.from_dict({
+            'id': all_ids,
+            'paper_id': all_paper_ids,
+            'paper_domain': all_paper_domains,
+            'paper_citations': all_paper_citations,
+            'paper_link': all_paper_links,
+            'context': all_contexts,
+            'theorem': all_theorems,
+            'unique_answer_explanation': all_unique_answer_explanations,
+        })
+        return dataset
 
 
 def remove_duplicates(dataset):
@@ -728,6 +874,7 @@ def main():
     parser.add_argument("--output", type=str, default="output", help="Root directory to save nested theorems folders")
     parser.add_argument("--sample_papers", type=int, help="Number of papers to process")
     parser.add_argument("--include_appendix", action="store_true", help="Include theorems from appendices (default: skip appendix theorems)")
+    parser.add_argument("--run_parallel", type=bool, default=True, help="Run processing in parallel")
     parser.add_argument("--append", action="store_true", help="Append to existing theorems dataset instead of overwriting")
     args = parser.parse_args()
     setup_random_seed(seed=42)
@@ -756,8 +903,8 @@ def main():
         return
     
     # Create an instance of TheoremExtractor
-    extractor = TheoremExtractor()
-    
+    extractor = TheoremExtractor(run_parallel=args.run_parallel)
+
     for extract_dir in extract_dirs:
         # Compute relative path and output theorems folder
         rel_path = os.path.relpath(extract_dir, args.input)
@@ -785,12 +932,24 @@ def main():
                 continue
 
         console.print(f"[bold]Processing dataset of LaTeX papers: {extract_dir}[/bold]")
-        dataset = extractor.process_dataset(
-            input_dataset=input_dataset,
-            output_path=output_path,
-            sample_papers=args.sample_papers,
-            skip_appendix=not args.include_appendix,
-        )
+        if args.run_parallel:
+            console.print("[yellow]Running in parallel mode[/yellow]")
+            dataset = asyncio.run(extractor.async_process_dataset(
+                input_dataset=input_dataset,
+                output_path=output_path,
+                sample_papers=args.sample_papers,
+                skip_appendix=not args.include_appendix,
+                max_concurrent=5  #whatever concurrency you want
+            ))
+        else:
+            console.print("[yellow]Running in sequential mode[/yellow]")
+            dataset = extractor.process_dataset(
+                input_dataset=input_dataset,
+                output_path=output_path,
+                sample_papers=args.sample_papers,
+                skip_appendix=not args.include_appendix,
+            )
+
         dataset = remove_duplicates(dataset)
 
         if args.append:
