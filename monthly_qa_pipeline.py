@@ -210,5 +210,5 @@ if __name__ == "__main__":
     main()
 
 '''
-
+python monthly_qa_pipeline.py --year 2024 --start 5 --end 12
 '''
