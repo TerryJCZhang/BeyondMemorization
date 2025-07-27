@@ -635,7 +635,7 @@ class TheoremExtractor:
 
         return high_quality_theorems, num_theorems
     
-    async def async_process_paper(self, latex_text, skip_appendix=True, paper_link=""):
+    async def async_process_paper(self, latex_text, skip_appendix=True, paper_link="", paper=None):
         """ 
         Process a LaTeX paper to extract high-quality theorems asynchronously.
         """
@@ -657,6 +657,9 @@ class TheoremExtractor:
                 return None
             return {
                 "paper_link": paper_link,
+                "paper_id": paper.get('id'),
+                "paper_domain": paper.get('category'),
+                "paper_citations": paper.get('citations', 0),
                 "theorem": theorem['content'],
                 "context": context,
                 "unique_answer_explanation": result_unique['explanation'],
@@ -744,7 +747,7 @@ class TheoremExtractor:
             # Add theorems to our collections
             for theorem in unique_theorems:
                 all_ids.append(len(all_ids))
-                all_paper_ids.append(paper.get('id', f"paper_{i}"))
+                all_paper_ids.append(paper.get('id') or paper_link)
                 all_paper_domains.append(paper.get('category', 'unknown'))
                 all_paper_citations.append(paper.get('citations', 0))
                 all_paper_links.append(paper_link)
@@ -788,7 +791,7 @@ class TheoremExtractor:
         semaphore = asyncio.Semaphore(max_concurrent)
         async def process_one_paper(i, paper):
             async with semaphore:
-                return await self.async_process_paper(paper['full_text'], skip_appendix, paper.get('paper_link', f"paper_{i}"))
+                return await self.async_process_paper(paper['full_text'], skip_appendix, paper.get('paper_link', f"paper_{i}"), paper)
 
         tasks = [process_one_paper(i, paper) for i, paper in enumerate(input_dataset)]
         results = []
@@ -815,10 +818,10 @@ class TheoremExtractor:
             # Add theorems to our collections
             for theorem in unique_theorems:
                 all_ids.append(len(all_ids))
-                all_paper_ids.append(theorem.get('paper_id', f"paper_{i}"))
-                all_paper_domains.append(theorem.get('paper_domain', 'unknown'))
-                all_paper_citations.append(theorem.get('paper_citations', 0))
-                all_paper_links.append(theorem.get('paper_link', f"paper_{i}"))
+                all_paper_ids.append(theorem.get('paper_id'))
+                all_paper_domains.append(theorem.get('paper_domain'))
+                all_paper_citations.append(theorem.get('paper_citations'))
+                all_paper_links.append(theorem.get('paper_link'))
                 all_contexts.append(theorem['context'])
                 all_theorems.append(theorem['theorem'])
                 all_unique_answer_explanations.append(theorem['unique_answer_explanation'])
