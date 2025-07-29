@@ -1,5 +1,5 @@
 #!/bin/bash
-OUTPUT_PATH=MATH_2025_5
+OUTPUT_PATH=results
 
 # 1. Retrieve math papers
 python helpers/arxiv_retriever.py --year 2025 --month 5 --output $OUTPUT_PATH/papers --max-results 1000 --category math

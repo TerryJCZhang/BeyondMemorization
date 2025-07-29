@@ -1,18 +1,8 @@
-# PioneerScience: Research-Level Scientific Benchmark from Real-World Research Paper
-
-<div align="center">
-
-#### [📄 Paper](https://arxiv.org/abs/2505.12575)  |  [🤗 RealMath](https://huggingface.co/datasets/ethz-spylab/realmath) 
-</div>
-
-Code for [RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics](https://arxiv.org/abs/2505.12575)
-
-[HuggingFace dataset](https://huggingface.co/datasets/ethz-spylab/RealMath), which includes 633 samples from *math.arXiv*, 111 samples from *cs.arXiv*
 
 ## Overview
 
 This project implements an end-to-end pipeline that:
-1. Retrieves papers related to mathematical problems from arXiv, e.g., CS, Math, etc.
+1. Retrieves papers related to mathematical problems from arXiv, e.g., Physics, Math, etc.
 2. Extracts and processes LaTeX source code
 3. Extracts theorems from these papers
 4. Generates question-answer pairs from theorems with fixed answers
@@ -37,7 +27,7 @@ Note that our benchmark is fully automated and refreshable. For example, we can 
 
 ```bash
 #!/bin/bash
-OUTPUT_PATH=MATH_2025_5
+OUTPUT_PATH=results
 
 # 1. Retrieve math papers
 python helpers/arxiv_retriever.py --year 2025 --month 5 --output $OUTPUT_PATH/papers --max-results 1000 --category math
@@ -62,21 +52,6 @@ python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH/qa_pairs --
 wait
 
 echo "Done!"
-```
-
-# Cite
-If you use this code/dataset in your research, please cite the following paper:
-```bib
-@misc{zhang2025realmathcontinuousbenchmarkevaluating,
-      title={RealMath: A Continuous Benchmark for Evaluating Language Models on Research-Level Mathematics}, 
-      author={Jie Zhang and Cezara Petrui and Kristina Nikolić and Florian Tramèr},
-      year={2025},
-      eprint={2505.12575},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2505.12575}, 
-}
-```
 
 
 
