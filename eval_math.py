@@ -57,6 +57,7 @@ import re
 
 # Handle optional dependencies with graceful fallbacks
 try:
+    import openai
     from openai import OpenAI
 
     OPENAI_AVAILABLE = True
@@ -102,10 +103,8 @@ except ImportError:
 
 OPENAI_MODELS = {
     "o3-mini": "o3-mini-2025-01-31",
-    "o1-mini": "o1-mini-2024-09-12",
-    "gpt-3.5-turbo": "gpt-3.5-turbo-0125",
-    "o4-mini": "o4-mini-2025-04-16",  # 2025-04-16
-    "gpt-4o-mini": "gpt-4o-mini-2024-07-18",
+    "o4-mini": "o4-mini-2025-04-16",
+    "gpt-4.1": "openai/gpt-4.1"
 }
 
 ANTHROPIC_MODELS = {
@@ -115,15 +114,12 @@ ANTHROPIC_MODELS = {
 
 # Add OpenRouter models
 OPENROUTER_MODELS = {
-    "deepseek-r1": "deepseek/deepseek-r1",  # high latency
-    "grok-3": "x-ai/grok-3-beta",
+    "llama-4-scout": "meta-llama/llama-4-scout",
     "llama-3.3-70b": "meta-llama/llama-3.3-70b-instruct",
-    "llama-3.1-405b": "meta-llama/llama-3.1-405b-instruct",
-    "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
-    "gemini-2.5-flash": "google/gemini-2.5-flash-preview",
-    "gemini-2.5-pro": "google/gemini-2.5-pro-preview-03-25",  # 2025-03-25
-    "qwen-32b": "qwen/qwq-32b",
-    "qwen3-235b": "qwen/qwen3-235b-a22b",
+    "gemini-2.0-flash": "google/gemini-2.0-flash-001",
+    "gemini-2.5-flash": "google/gemini-2.5-flash",
+    "deepseek-r1": "deepseek/deepseek-r1",
+    "deepseek-r1-0528": "deepseek/deepseek-r1-0528",
 }
 
 
@@ -145,27 +141,35 @@ class QAEvaluator:
         Args:
             verbose (bool, optional): Whether to print detailed information. Defaults to False.
         """
-        self.openai_api_key = os.environ.get("OPENAI_API_KEY")
-        self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
         self.openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
         self.verbose = verbose
 
         # Initialize clients
         self.openai_client = None
+        self.async_openai_client = None  # Added async client
         self.anthropic_client = None
         self.async_anthropic_client = None  # Added async client
         self.openrouter_client = None
+        self.async_openrouter_client = None  # Added async client
         if OPENAI_AVAILABLE:
             self.openai_client = OpenAI(
                 base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
             ) # Use OpenRouter client for OpenAI models
+            self.async_openai_client = openai.AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
+            )
         if ANTHROPIC_AVAILABLE:
-            self.anthropic_client = anthropic.Anthropic(api_key=self.anthropic_api_key)
-            self.async_anthropic_client = AsyncAnthropic(
-                api_key=self.anthropic_api_key
+            self.anthropic_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
+            )
+            self.async_anthropic_client = openai.AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
             )  # Initialize async client
         if OPENROUTER_AVAILABLE and self.openrouter_api_key:
             self.openrouter_client = OpenAI(
+                base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
+            )
+            self.async_openrouter_client = openai.AsyncOpenAI(
                 base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
             )
 
@@ -197,16 +201,6 @@ class QAEvaluator:
                 f"[bold red]Error loading dataset from disk: {e}[/bold red]"
             )
             return None
-
-        # Handle sample size - use full dataset if sample_size is 0
-        if sample_size and sample_size > 0 and sample_size < len(dataset):
-            # Randomly sample from the dataset
-            indices = random.sample(range(len(dataset)), sample_size)
-            dataset = dataset.select(indices)
-            if self.verbose:
-                console.print(
-                    f"[yellow]Sampled {sample_size} examples from dataset with {len(dataset)} total examples[/yellow]"
-                )
 
         if self.verbose:
             console.print(f"[green]Final dataset has {len(dataset)} examples[/green]")
@@ -263,6 +257,48 @@ class QAEvaluator:
                 ],
             )
 
+            return response.choices[0].message.content
+        except Exception as e:
+            if self.verbose:
+                console.print(f"[bold red]Error querying OpenAI model: {e}[/bold red]")
+            return f"Error: {str(e)}"
+        
+    async def async_query_openai_model(self, context, question, model_name="gpt-4o", use_context=True):
+        """
+        Asynchronously query an OpenAI model with a scientific problem.
+        """
+        system_prompt = """You are an expert scientist tasked with solving a scientific problem. Given a question and context, provide a clear, step-by-step solution to the question based on the provided context.
+        Your answer should be precise, rigorous, and use proper scientific notation.
+
+        After your detailed explanation, include your final answer in a clear, properly formatted LaTeX after a section titled 'Final Answer' (\\section*{{Final Answer}}).
+        Ensure all symbolic expressions are properly enclosed in $...$ or \\[...\\] delimiters.
+
+        """
+
+        if use_context:
+            user_prompt = f"""CONTEXT:
+            {context}
+
+            QUESTION:
+            {question}
+
+            Please solve this scientific problem step by step, showing your reasoning clearly.
+            At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
+        else:
+            user_prompt = f"""QUESTION:
+            {question}
+
+            Please solve this scientific problem step by step, showing your reasoning clearly.
+            At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
+
+        try:
+            response = await self.async_openai_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
             return response.choices[0].message.content
         except Exception as e:
             if self.verbose:
@@ -564,6 +600,84 @@ class QAEvaluator:
                     f"[bold red]Error querying OpenRouter model: {e}[/bold red]"
                 )
             return f"Error: {str(e)}"
+        
+    async def async_query_openrouter_models(
+        self, context, question, model_name, use_context=True
+    ):
+        """
+        Asynchronously query an OpenRouter model with a scientific problem.
+        """
+
+        if not OPENROUTER_AVAILABLE or not self.async_openrouter_client:
+            return "Error: OpenRouter client not available"
+
+        system_prompt = """You are an expert research scientist tasked with solving a scientific problem.
+        Provide a clear, step-by-step solution to the question based on the provided context.
+        Your answer should be precise, rigorous, and use proper scientific notation.
+        
+        After your detailed explanation, include your final answer in a clear, properly formatted LaTeX form
+        under a section titled 'Final Answer' like this:
+        
+        \\section*{Final Answer}
+        Your well-formatted LaTeX answer here, with appropriate line breaks for complex expressions.
+        Ensure all math expressions are properly enclosed in $...$ or \\[...\\] delimiters.
+        
+        Ensure that the LaTeX is valid and can be directly rendered in standard LaTeX without requiring custom command definitions.
+        """
+
+        if use_context:
+            user_prompt = f"""CONTEXT:
+            {context}
+            
+            QUESTION:
+            {question}
+            
+            Please solve this scientific problem step by step, showing your reasoning clearly.
+            At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
+        else:
+            user_prompt = f"""QUESTION:
+            {question}
+            
+            Please solve this scientific problem step by step, showing your reasoning clearly.
+            At the end, provide your final answer in well-formatted LaTeX under a section titled 'Final Answer' (\\section*{{Final Answer}})."""
+
+        try:
+            extra_body = {}
+            if model_name.lower() == "deepseek/deepseek-r1-0528":
+                extra_body = {
+                    "provider": {
+                        "order": ["lambda/fp8", "crusoe/fp8"],  # your preferred provider order
+                        "allow_fallbacks": True
+                    }
+                }
+            elif model_name.lower() == "deepseek/deepseek-r1":
+                extra_body = {
+                    "provider": {
+                        "order": [ "nebius/base", "lambda/fp8"],
+                        "allow_fallbacks": True
+                    }
+                }
+            
+            response = await self.async_openrouter_client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                extra_body=extra_body
+                # stream=True,
+                # extra_headers={
+                #     "HTTP-Referer": "https://math-benchmark-eval.com",
+                #     "X-Title": "Math Benchmark Evaluation"
+                # }
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            if self.verbose:
+                console.print(
+                    f"[bold red]Error querying OpenRouter model: {e}[/bold red]"
+                )
+            return f"Error: {str(e)}"
 
     def query_model(
         self, context, question, model_name, use_context=True, use_thinking=False
@@ -608,6 +722,25 @@ class QAEvaluator:
         # Unsupported model
         else:
             return f"Error: Unsupported model {model_name}. Only OpenAI GPT models, Anthropic Claude models, and OpenRouter models are supported."
+
+    async def async_query_model(self, context, question, model_name, use_context=True, use_thinking=False):
+        """
+        Asynchronously query the appropriate model based on model name.
+        """
+        if model_name in OPENAI_MODELS.keys():
+            return await self.async_query_openai_model(
+                context, question, model_name=OPENAI_MODELS[model_name], use_context=use_context
+            )
+        elif model_name in ANTHROPIC_MODELS.keys():
+            return await self.async_query_anthropic_model(
+                context, question, model_name=ANTHROPIC_MODELS[model_name], use_context=use_context, use_thinking=use_thinking
+            )
+        elif model_name in OPENROUTER_MODELS.keys():
+            return await self.async_query_openrouter_models(
+                context, question, model_name=OPENROUTER_MODELS[model_name], use_context=use_context
+            )
+        else:
+            return f"Error: Unsupported model {model_name}."
 
     def verify_latex_compatibility(self, answer):
         """
@@ -826,7 +959,7 @@ class QAEvaluator:
 
         try:
             response = self.openai_client.chat.completions.create(
-                model="gpt-4.1",
+                model="openai/gpt-4.1",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -839,6 +972,59 @@ class QAEvaluator:
             return result.get("is_correct", False), result.get(
                 "explanation", "No explanation provided"
             )
+        except Exception as e:
+            if self.verbose:
+                console.print(f"[bold red]Error evaluating answer: {e}[/bold red]")
+            return False, f"Error evaluating: {str(e)}"
+        
+    async def async_evaluate_answer(self, answer_data, ground_truth, question):
+        """
+        Asynchronously evaluate the correctness of the generated answer against the ground truth using GPT-4.1 as a judge.
+        """
+        if not OPENAI_AVAILABLE or not self.async_openai_client:
+            return False, "OpenAI client not available for evaluation"
+
+        final_answer = answer_data
+
+        system_prompt = """You are an expert research scientist tasked with evaluating the correctness of an answer to a scientific question.
+
+        Compare the generated answer to the ground truth answer and determine whether the generated answer is scientifically correct
+        and equivalent to the ground truth.
+
+        Please be very strict and rigorous in your evaluation.
+        Ensure the generated answer can be directly rendered in standard LaTeX without requiring custom command definitions.
+        Be precise and focus on scientific correctness, not formatting or style differences.
+        Your evaluation should be fair and consider that the same scientific content can be expressed in different ways."""
+
+        user_prompt = f"""QUESTION:
+        {question}
+
+        GROUND TRUTH ANSWER:
+        {ground_truth}
+
+        GENERATED ANSWER:
+        {final_answer}
+
+        Carefully evaluate whether the generated answer is scientifically correct
+        and equivalent to the ground truth. Your response should only contain a JSON object with the following fields:
+        {{
+        "is_correct": boolean,
+        "explanation": "A concise explanation of why the answer is correct or incorrect, in a clean LaTeX format"
+        }}
+        where is_correct is true if the answer is scientifically correct and equivalent to the ground truth, and false if it isn't."""
+
+        try:
+            response = await self.async_openai_client.chat.completions.create(
+                model="openai/gpt-4.1",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=1000,
+            )
+            result = json.loads(response.choices[0].message.content)
+            return result.get("is_correct", False), result.get("explanation", "No explanation provided")
         except Exception as e:
             if self.verbose:
                 console.print(f"[bold red]Error evaluating answer: {e}[/bold red]")
@@ -925,7 +1111,7 @@ class QAEvaluator:
         if model_name in ANTHROPIC_MODELS.keys() and parallel > 0:
             # Run async version
             return asyncio.run(
-                self.async_run_evaluation(
+                self.old_async_run_evaluation(
                     dataset,
                     model_name,
                     use_context=use_context,
@@ -1035,7 +1221,7 @@ class QAEvaluator:
 
         return metrics
 
-    async def async_run_evaluation(
+    async def old_async_run_evaluation(
         self, dataset, model_name, use_context=True, use_thinking=False, max_parallel=5
     ):
         """
@@ -1158,6 +1344,79 @@ class QAEvaluator:
         }
 
         return metrics
+    
+    async def async_run_evaluation(self, dataset, model_name, use_context=True, use_thinking=False, max_parallel=10):
+        """
+        Run the evaluation on a dataset asynchronously.
+        """
+        results = []
+        correct_count = 0
+        correct_ids = []
+        semaphore = asyncio.Semaphore(max_parallel)
+        pbar = tqdm(total=len(dataset), desc=f"Evaluating {model_name} (async)")
+
+        logs = [None] * len(dataset)  # Preallocate logs for strict order
+
+        async def process_example(i, example):
+            async with semaphore:
+                context = example.get("context", "") if use_context else ""
+                question = example.get("question")
+                ground_truth = example.get("answer")
+                paper_link = example.get("paper_link")
+                answer_data = await self.async_query_model(
+                    context, question, model_name, use_context=use_context, use_thinking=use_thinking
+                )
+                is_correct, explanation = await self.async_evaluate_answer(answer_data, ground_truth, question)
+                if is_correct:
+                    correct_ids.append(i)
+                result = {
+                    "question_id": i,
+                    "paper_link": paper_link,
+                    'paper_id': example.get('paper_id'),
+                    'paper_domain': example.get('paper_domain'),
+                    'paper_citations': example.get('paper_citations'),
+                    "theorem": example.get("theorem"),
+                    "question": question,
+                    "ground_truth": ground_truth,
+                    "generated_answer": answer_data,
+                    "is_correct": is_correct,
+                    "explanation": explanation,
+                }
+                results.append(result)
+                pbar.update(1)
+                if self.verbose:
+                    result_color = "green" if is_correct else "red"
+                    logs[i] = Panel(
+                        f"[bold]Theorem:[/bold] {example.get('theorem', '')[:150]}...\n\n"
+                        f"[bold]Question:[/bold] {question}\n\n"
+                        f"[bold]Ground truth:[/bold] {ground_truth}\n\n"
+                        f"[bold]Final answer:[/bold] {str(answer_data)[:150]}...\n\n"
+                        f"[bold]{result_color}]Correct:[/bold] {is_correct}\n"
+                        f"[bold]Explanation:[/bold] {explanation}\n",
+                        title=f"Question {i + 1} Result",
+                        border_style=result_color,
+                    )
+
+        tasks = [process_example(i, example) for i, example in enumerate(dataset)]
+        await asyncio.gather(*tasks)
+        pbar.close()
+
+        if self.verbose:
+            for panel in logs:
+                if panel is not None:
+                    console.print(panel)
+
+        accuracy = len(correct_ids) / len(dataset) if len(dataset) > 0 else 0
+        metrics = {
+            "model": model_name,
+            "dataset_size": len(dataset),
+            "accuracy": accuracy,
+            "correct_count": len(correct_ids),
+            "correct_ids": correct_ids,
+            "context_used": use_context,
+            "results": results,
+        }
+        return metrics
 
     def save_results(self, metrics, output_path=None):
         """
@@ -1192,7 +1451,6 @@ def log_to_file(log_path):
     orig_print = console.print
 
     def tee_print(*args, **kwargs):
-        orig_print(*args, **kwargs)
         file_console.print(*args, **kwargs)
 
     console.print = tee_print
@@ -1225,7 +1483,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="deepseek-r1",
+        default=None,
         help="Model to evaluate. Available options: "
         + ", ".join(
             list(OPENAI_MODELS.keys())
@@ -1269,7 +1527,7 @@ def main():
     parser.add_argument(
         "--parallel",
         type=int,
-        default=0,
+        default=60,
         help="Number of parallel queries to run (Only for Anthropic models, 0 = sequential execution)",
     )
 
@@ -1328,13 +1586,24 @@ def main():
                 console.print(f"[yellow]Skipping empty or invalid dataset: {qa_dir}[/yellow]")
                 continue
 
-            metrics = evaluator.run_evaluation(
-                dataset,
-                args.model,
-                use_context=not args.no_context,
-                use_thinking=args.use_thinking,
-                parallel=args.parallel,
-            )
+            if args.parallel > 0:
+                metrics = asyncio.run(
+                    evaluator.async_run_evaluation(
+                        dataset,
+                        args.model,
+                        use_context=not args.no_context,
+                        use_thinking=args.use_thinking,
+                        max_parallel=args.parallel,
+                    )
+                )
+            else:
+                metrics = evaluator.run_evaluation(
+                    dataset,
+                    args.model,
+                    use_context=not args.no_context,
+                    use_thinking=args.use_thinking,
+                    parallel=args.parallel,
+                )
 
             evaluator.save_results(metrics, output_path)
 

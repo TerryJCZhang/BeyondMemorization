@@ -609,7 +609,7 @@ async def async_filter_trivial_samples(dataset, max_concurrent=5):
     # Default result in case of persistent failures
     default_result = {
         "explanation": "Failed to evaluate due to API errors",
-        "is_trivial": "false"
+        "is_trivial": "true"
     }
 
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -647,7 +647,7 @@ async def async_filter_trivial_samples(dataset, max_concurrent=5):
             """
 
             result = default_result
-            max_retries = 5
+            max_retries = 2
             for attempt in range(1, max_retries + 1):
                 try:
                     response = await client.chat.completions.create(

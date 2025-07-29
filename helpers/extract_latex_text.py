@@ -46,7 +46,7 @@ class ArxivLatexExtractor:
         # Add session for connection pooling and consistent headers
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (compatible; ArxivLatexExtractor/1.0; +mailto:gopaldev108@gmail.com)'
+            'User-Agent': 'Mozilla/5.0 (compatible; ArxivLatexExtractor/1.0; +mailto:xyz@gmail.com)'
         })
         logger.info(f"Loaded dataset with {len(self.dataset)} papers")
     
