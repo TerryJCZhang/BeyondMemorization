@@ -1,26 +1,61 @@
 #!/bin/bash
-OUTPUT_PATH=results
+OUTPUT_PATH=results/
+
+export OPENROUTER_API_KEY=your_key
 
 # 1. Retrieve math papers
-python helpers/arxiv_retriever.py --year 2025 --month 5 --output $OUTPUT_PATH/papers --max-results 1000 --category math
+python arxiv_retriever.py --year 2024 --month 6 --categories cs, math --output output --max-results 100
 
 # 2. Extract LaTeX source
-python helpers/extract_latex_text.py --input $OUTPUT_PATH/papers --output $OUTPUT_PATH/latex
+python helpers/extract_latex_text.py --input $OUTPUT_PATH --output $OUTPUT_PATH
 
 # 3. Extract theorems
-python helpers/extract_theorems.py --input $OUTPUT_PATH/latex --output $OUTPUT_PATH/theorems 
+python helpers/extract_theorems.py --input $OUTPUT_PATH --output $OUTPUT_PATH
 
 # 4. Generate QA pairs
-python helpers/generate_qa.py --input $OUTPUT_PATH/theorems --output $OUTPUT_PATH/qa_pairs 
+python helpers/generate_qa.py --input $OUTPUT_PATH --output $OUTPUT_PATH
+
+# Or end to end QA pipeline command
+python monthly_qa_pipeline.py --year 2024 --start 5 --end 12
 
 # 5. Evaluate the QA pairs
-python eval_math.py --model o4-mini --dataset $OUTPUT_PATH/qa_pairs --output $OUTPUT_PATH/results  &
+set -euo pipefail
 
-python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH/qa_pairs --output $OUTPUT_PATH/results   &
+MODELS=(
+  "deepseek-r1"
+  "deepseek-r1-0528"
+  "gemini-2.0-flash"
+  "gemini-2.0-pro"
+  "o3-mini"
+  "o4-mini"
+  "llama-4-scout"
+  "llama-3.3-70b"
+)
 
-python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH/qa_pairs --use_thinking --parallel 10 --output $OUTPUT_PATH/results &
+PARALLEL=60
 
-# Wait for both parallel processes to complete
+
+LOG_DIR="./logs_eval"
+FAILED_LOG="$LOG_DIR/failed_models.txt"
+mkdir -p "$LOG_DIR"
+rm -f "$FAILED_LOG"
+
+
+for model in "${MODELS[@]}"; do
+  {
+    echo "Running $model with --parallel $PARALLEL"
+    python eval_math.py --model "$model" --parallel "$PARALLEL" \
+      &> "$LOG_DIR/${model//\//_}.log"
+    echo "$model completed successfully"
+  } || {
+    echo "$model failed at $(date)" | tee -a "$FAILED_LOG"
+  } &
+done
+
 wait
 
-echo "Done!"
+if [[ -s "$FAILED_LOG" ]]; then
+  echo "Some models failed. See $FAILED_LOG for details."
+else
+  echo "All evaluations completed successfully!"
+fi
