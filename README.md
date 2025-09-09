@@ -11,15 +11,12 @@ Code for [Beyond Memorization: Reasoning-Driven Synthesis as a Mitigation Strate
 
 ## Overview
 
-This project implements an end-to-end pipeline that:
+This Repo implements an end-to-end pipeline that:
 1. Retrieves papers related to scientific problems from arXiv, e.g., CS, Physics, etc.
 2. Extracts and processes LaTeX source code
 3. Extracts theorems from these papers
 4. Generates question-answer pairs from theorems with fixed answers
 5. Evaluate the capabilities of LLMs on solving the question-answer pairs
-
-![description](pipeline.png)
-
 
 ## Requirements
 
