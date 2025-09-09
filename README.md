@@ -1,4 +1,4 @@
-# Beyond Memorization: Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination
+# [Work in Progress] Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination
 
 <div align="center">
 
