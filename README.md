@@ -1,8 +1,8 @@
-# [Work in Progress] Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination
+# [Under Review] Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination
 
 <div align="center">
 
-#### [📄 Paper](arxiv link)  |  [🤗 Data](data link) 
+#### [📄 Paper](arxiv link)  |  [🤗 Data](In Repo) 
 </div>
 
 Code for [Beyond Memorization: Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination](arxiv link)
