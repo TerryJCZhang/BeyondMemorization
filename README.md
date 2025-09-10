@@ -7,7 +7,7 @@
 
 Code for [Beyond Memorization: Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination](arxiv link)
 
-[Dataset](data link), QAs synthesized from 4235 papers from *math.arXiv*, 16042 papers from *physics.arXiv*
+[Dataset](data link), 1643 Theorem+QAs synthesized from 4235 papers from *math.arXiv*, 16042 papers from *physics.arXiv*
 
 ## Overview
 
@@ -42,9 +42,9 @@ python monthly_qa_pipeline.py --year 2024 --start 5 --end 12
 # 5. Evaluate the QA pairs
 python eval_math.py --model o4-mini --dataset $OUTPUT_PATH --output $OUTPUT_PATH  &
 
-python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH --output $OUTPUT_PATH   &
+python eval_math.py --model deepseek-r1-0528 --dataset $OUTPUT_PATH --output $OUTPUT_PATH   &
 
-python eval_math.py --model claude-3.7-sonnet --dataset $OUTPUT_PATH --use_thinking --parallel 10 --output $OUTPUT_PATH/results &
+python eval_math.py --model deepseek-r1-0528 --dataset $OUTPUT_PATH --use_thinking --parallel 10 --output $OUTPUT_PATH/results &
 
 # Wait for both parallel processes to complete
 wait
