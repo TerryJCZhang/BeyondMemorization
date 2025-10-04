@@ -1,0 +1,26 @@
+{
+  "before_cutoff": {
+    "questions": 280,
+    "binary_points": 631,
+    "binary_max_points": 1400,
+    "binary_pp": 45.07142857142858,
+    "rouge_l_pp": 48.748526077097495,
+    "bleu_pp": 16.55147273683147
+  },
+  "after_cutoff": {
+    "questions": 353,
+    "binary_points": 733,
+    "binary_max_points": 1765,
+    "binary_pp": 41.52974504249292,
+    "rouge_l_pp": 43.76469202814812,
+    "bleu_pp": 9.949271413379805
+  },
+  "overall": {
+    "questions": 633,
+    "binary_points": 1364,
+    "binary_max_points": 3165,
+    "binary_pp": 43.09636650868878,
+    "rouge_l_pp": 45.96923157586665,
+    "bleu_pp": 12.86967642217359
+  }
+}
