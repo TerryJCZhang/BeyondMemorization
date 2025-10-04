@@ -3,3 +3,5 @@
 python livecodebench.py
 python analysis.py 
 python plotting.py
+
+Remark: livecodebench-final.ipynb is the same as the python code, and livecodebench-analysis.ipynb contains older code that is not used in the final version, but for exploratory purposes.
