@@ -166,8 +166,7 @@ Outputs and artifacts
 
 Notes
 
-- Perturbations may require deterministic random seeds to be reproducible; check the script flags and set
-  `--seed` where available.
+-- Perturbations may require configuration options; check the script flags where available.
 
 -------------------------------------------------------------------------------
 
