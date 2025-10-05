@@ -5,10 +5,6 @@
 #### [📄 Paper](arxiv link)  |  [🤗 Data](In Repo) 
 </div>
 
-Code for [Beyond Memorization: Reasoning-Driven Synthesis as a Mitigation Strategy Against Benchmark Contamination](arxiv link)
-
-[Dataset](data link), 1643 Theorem+QAs synthesized from 4235 papers from *math.arXiv*, 16042 papers from *physics.arXiv*
-
 ## Overview
 
 This Repo implements an end-to-end pipeline that:
