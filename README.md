@@ -157,25 +157,5 @@ Helpers like `count_qa_pairs.py` and `datacollate.py` assume this folder layout.
   `monthly_qa_pipeline.log`) — inspect them for detailed failures.
 - Prompt tuning: the QA generation is prompt-sensitive. If you modify prompts in `helpers/prompts.py`, run a
   small sample before re-generating a large batch.
-
-## Reproducibility / tests
-
-- The repository uses deterministic seeds (e.g. `seed=42`) in several places for repeatability of shuffling.
-- For a minimal smoke test, run `count_qa_pairs.py` on an `output/` snapshot.
-
-## Citations
-
-If you use the dataset or code, please cite the associated paper (add arXiv / bibtex reference here).
-
-## Optional follow-ups I can implement
-
-- Add a minimal `examples/` folder with a tiny example dataset and a smoke test that runs the pipeline on
-  the example (safe, no external API calls).
-- Expand the `helpers/` README with per-script examples and typical runtime notes.
-
-If you want one of these additions, tell me which and I will create it.
-
-
-
-
+  
 
