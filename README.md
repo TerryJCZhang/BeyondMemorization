@@ -15,15 +15,18 @@
 - [Reproducibility and package management](#reproducibility-and-package-management)
 - [Contact and citation](#contact-and-citation)
 
-**Overview:** This repository contains the code, data pipeline, and analysis used in the "Beyond Memorization"
-project. It provides a month-by-month data collection and QA synthesis pipeline that extracts theorems from
-arXiv papers, synthesizes unique LaTeX-formatted question–answer pairs, and evaluates large language models on
-those items. The repo also includes two validation experiments (a CLOZE benchmark over abstracts and a perturbed
-LiveCodeBench study) to stress-test model robustness and generalization.
+**Overview:** This repository is organized into three self-contained parts. Each part is independently runnable and
+contains scripts, datasets, and notebooks needed to reproduce the associated analyses. The three parts are:
 
-This repository implements the code and data pipeline used in the project "Beyond Memorization: Reasoning-Driven
-Synthesis as a Mitigation Strategy Against Benchmark Contamination." Below is a concise, reviewer-focused README
-organized into three parts so readers can quickly find the code and reproduce experiments.
+1. Main experiment — month-wise QA synthesis and evaluation: a pipeline that retrieves arXiv papers, extracts
+  LaTeX/theorems, synthesizes LaTeX-formatted question–answer pairs, and evaluates language models on those items.
+2. Validation experiment 1 — CLOZE using abstracts: a focused validation that generates cloze-style questions from
+  paper abstracts and evaluates model performance on fill-in-the-blank tasks.
+3. Validation experiment 2 — Perturbed LiveCodeBench: a controlled validation which applies perturbations to code
+  problems and measures model robustness to those transformations.
+
+Below is a concise, reviewer-focused README organized around those three parts, with runnable examples and the
+locations of the most important scripts and outputs.
 
 Prerequisites (short)
 
@@ -55,7 +58,7 @@ Top-level orchestration and important files
 
 - `datacollate.py` — collates `output/.../qa_pairs` into a central `data/` directory.
 - `count_qa_pairs.py` — counts QA pairs across `output/` and reports token-size issues.
-- `eval.py` — evaluation harness that supports OpenAI / OpenRouter / Anthropic backends.
+- `eval.py` — evaluation harness that supports OpenAI / OpenRouter backends.
 
 Folder layout (for a single topic/month):
 
@@ -85,12 +88,12 @@ python count_qa_pairs.py --input output --json_out qa_count.json --show_exceed_t
 python eval.py --dataset data --output results --model o4-mini
 ```
 
-Notes and tips
+Logs and troubleshooting
 
-- Logs: per-month logs (e.g., `monthly_qa_pipeline.log`, `qa_generate.log`) live in the corresponding
-  `output/.../<YYYY>/<MM>/` folder. Inspect them for failures or model API errors.
+- Per-month logs (e.g., `monthly_qa_pipeline.log`, `qa_generate.log`) live in the corresponding
+  `output/.../<YYYY>/<MM>/` folder; inspect them for failures or model API errors.
 - Prompts and rules: see `helpers/prompts.py` — QA generation enforces LaTeX formatting and unique answers.
-- Reproducibility: use the included `uv.lock` (or recreate a venv) to pin dependencies.
+- Use the included `uv.lock` or the provided `requirements.txt` in a venv to pin dependencies.
 
 -------------------------------------------------------------------------------
 
@@ -126,10 +129,8 @@ Outputs and artifacts
 - `*_results.json` and `*_scores.json` files in `CLOZEonRealMathPapers/` record per-model outputs and aggregated scores.
 - Notebooks in `ValidationExp1-CLOZEusingAbstracts/` demonstrate analysis and reproduction of reported metrics.
 
-Notes
-
-- This validation is intentionally narrower than the main experiment and uses smaller inputs to make
-  rapid iteration and manual checking feasible for reviewers.
+This validation is intentionally narrower than the main experiment and uses smaller inputs to make
+rapid inspection and manual checking easier for reviewers.
 
 -------------------------------------------------------------------------------
 
@@ -164,26 +165,22 @@ Outputs and artifacts
 - `stats.csv` / `plots/` — aggregated metrics and visualization artifacts
 - Notebooks provide reproducible steps to regenerate all figures and tables.
 
-Notes
-
--- Perturbations may require configuration options; check the script flags where available.
+Check script flags for available configuration options.
 
 -------------------------------------------------------------------------------
 
 ## Environment variables and secrets
 
-The repository uses `python-dotenv` to load a `.env` file if present. Common variables:
+The repository uses `python-dotenv` to load a `.env` file if present. Common variables used by the scripts:
 
 - `OPENROUTER_API_KEY` — OpenRouter / OpenAI backend key used across scripts
 - `OPENAI_API_KEY` — optional direct OpenAI SDK key
-- `ANTHROPIC_API_KEY` — optional Anthropic key for Claude models
 
 Example (POSIX):
 
 ```bash
 export OPENROUTER_API_KEY="your-openrouter-key"
 export OPENAI_API_KEY="your-openai-key"
-export ANTHROPIC_API_KEY="your-anthropic-key"
 ```
 
 PowerShell (Windows):
@@ -191,7 +188,6 @@ PowerShell (Windows):
 ```powershell
 $env:OPENROUTER_API_KEY = "your-openrouter-key"
 $env:OPENAI_API_KEY     = "your-openai-key"
-$env:ANTHROPIC_API_KEY  = "your-anthropic-key"
 ```
 
 Security: do not commit keys or `.env` files to the repository. Use a secrets manager for long runs.
