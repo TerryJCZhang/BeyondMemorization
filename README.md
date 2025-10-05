@@ -15,18 +15,17 @@
 - [Reproducibility and package management](#reproducibility-and-package-management)
 - [Contact and citation](#contact-and-citation)
 
-**Overview:** This repository is organized into three self-contained parts. Each part is independently runnable and
-contains scripts, datasets, and notebooks needed to reproduce the associated analyses. The three parts are:
+Overview: three parts
 
-1. Main experiment — month-wise QA synthesis and evaluation: a pipeline that retrieves arXiv papers, extracts
-  LaTeX/theorems, synthesizes LaTeX-formatted question–answer pairs, and evaluates language models on those items.
-2. Validation experiment 1 — CLOZE using abstracts: a focused validation that generates cloze-style questions from
-  paper abstracts and evaluates model performance on fill-in-the-blank tasks.
-3. Validation experiment 2 — Perturbed LiveCodeBench: a controlled validation which applies perturbations to code
-  problems and measures model robustness to those transformations.
+This repository contains three self-contained parts. Each part includes the scripts, datasets and analysis used
+for the experiments described in the paper:
 
-Below is a concise, reviewer-focused README organized around those three parts, with runnable examples and the
-locations of the most important scripts and outputs.
+- Main experiment — month-wise QA synthesis and evaluation
+- Validation experiment 1 — CLOZE using abstracts
+- Validation experiment 2 — Perturbed LiveCodeBench
+
+The sections below list the core scripts, folder layout, and what each key file does. A small `MainResults-EvalLogMonthlyQA`
+archive contains archived evaluation logs and results from model runs.
 
 Prerequisites (short)
 
@@ -210,5 +209,18 @@ about reproducing experiments, open an issue or contact the authors via the pape
 If you'd like, I can (A) add runnable example inputs under `examples/` for each experiment so reviewers can
 run a fast, local smoke test without API calls, or (B) generate short per-script `--help` usage snippets
 collected into a `helpers/README.md`. Which would you prefer?
+
+---
+
+## Archive: MainResults-EvalLogMonthlyQA
+
+This folder contains archived evaluation logs and tarballs with model outputs that were used in the paper's
+comparisons. Contents:
+
+- `eval_deepseek.tar.gz` — archived evaluation outputs and logs for DeepSeek-style models
+- `eval_gemini_and_openai.tar.gz` — archived evaluation outputs combining Gemini and OpenAI runs
+- `eval_llama.tar.gz` — archived evaluation outputs and logs for LLaMA-family runs
+
+Use these archives to inspect raw model outputs and detailed logs referenced in the manuscript.
   
 
