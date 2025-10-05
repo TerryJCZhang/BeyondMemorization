@@ -91,8 +91,9 @@ Create cloze (fill-in-the-blank) items from paper abstracts and evaluate how mod
 
 Where to look
 
-- `ValidationExp1-CLOZEusingAbstracts/generate_and_evaluate_cloze_abstracts.py` — main script.
-- `ValidationExp1-CLOZEusingAbstracts/CLOZEonRealMathPapers/` — sample data and result files.
+- `ValidationExp1-CLOZEusingAbstracts/generate_and_evaluate_cloze_abstracts.py` — build cloze items from abstracts and run evaluations across models.
+- `ValidationExp1-CLOZEusingAbstracts/CLOZEonRealMathPapers/realmath_abstracts_with_cloze.json` — example input dataset used in validation runs.
+- Notebooks in the folder — exploratory analysis and visualization of results.
 
 Example
 
@@ -116,10 +117,11 @@ model behavior on original vs transformed problems.
 
 Where to look
 
-- `ValidationExp2-PerturbedLiveCodeBench/livecodebench.py` — run perturbations and evaluations.
-- `ValidationExp2-PerturbedLiveCodeBench/analysis.py` — aggregate results and compute metrics.
-- `ValidationExp2-PerturbedLiveCodeBench/plotting.py` — generate figures.
-- Notebooks: `livecodebench-analysis.ipynb`, `livecodebench-final.ipynb`.
+- `ValidationExp2-PerturbedLiveCodeBench/livecodebench.py` — generate perturbations and run model evaluations on the problems.
+- `ValidationExp2-PerturbedLiveCodeBench/analysis.py` — aggregate evaluation outputs and compute summary metrics.
+- `ValidationExp2-PerturbedLiveCodeBench/plotting.py` — create visualizations from aggregated stats.
+- `ValidationExp2-PerturbedLiveCodeBench/livecodebench-analysis.ipynb` — interactive analysis notebook.
+- `ValidationExp2-PerturbedLiveCodeBench/livecodebench-final.ipynb` — finalized analysis and figures.
 
 Example
 
