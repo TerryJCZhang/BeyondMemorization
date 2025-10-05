@@ -2,79 +2,36 @@
 
 <div align="center">
 
-#### [📄 Paper](arxiv link)  |  [🤗 Data](In Repo) 
+#### [📄 Paper](https://arxiv.org/)  |  [🤗 Data (Hugging Face)](https://huggingface.co/)
 </div>
 
-## Overview
+## Table of contents
 
-This Repo implements an end-to-end pipeline that:
-1. Retrieves papers related to scientific problems from arXiv, e.g., CS, Physics, etc.
-2. Extracts and processes LaTeX source code
-3. Extracts theorems from these papers
-4. Generates question-answer pairs from theorems with fixed answers
-5. Evaluate the capabilities of LLMs on solving the question-answer pairs
+- [Overview](#overview)
+- [Main experiment — month-wise QA synthesis and evaluation](#1-main-experiment-—-month-wise-qa-synthesis-and-evaluation)
+- [Validation experiment 1 — CLOZE using abstracts](#2-validation-experiment-1-—-cloze-using-abstracts)
+- [Validation experiment 2 — Perturbed LiveCodeBench](#3-validation-experiment-2-—-perturbed-livecodebench)
+- [Environment variables and secrets](#environment-variables-and-secrets)
+- [Reproducibility and package management](#reproducibility-and-package-management)
+- [Contact and citation](#contact-and-citation)
 
-## Requirements
+**Overview:** This repository contains the code, data pipeline, and analysis used in the "Beyond Memorization"
+project. It provides a month-by-month data collection and QA synthesis pipeline that extracts theorems from
+arXiv papers, synthesizes unique LaTeX-formatted question–answer pairs, and evaluates large language models on
+those items. The repo also includes two validation experiments (a CLOZE benchmark over abstracts and a perturbed
+LiveCodeBench study) to stress-test model robustness and generalization.
 
-- Python 3.12
-- Dependencies:
-  ```bash
-  pip install -r requirements.txt
-  ```
+This repository implements the code and data pipeline used in the project "Beyond Memorization: Reasoning-Driven
+Synthesis as a Mitigation Strategy Against Benchmark Contamination." Below is a concise, reviewer-focused README
+organized into three parts so readers can quickly find the code and reproduce experiments.
 
-- As this repo doesn't require any GPU, it's easy to run the server locally. But make sure you have a    <span style="color:red">latex installation</span>  on your machine, because we ensure the QA pairs in latex format can be directly rendered when we mannually check the theorems.
+Prerequisites (short)
 
-## Quick Start
+- Python 3.10+ (the code references 3.12 in places)
+- A LaTeX engine (TeX Live, MikTeX) if you want to render LaTeX outputs
+- API keys for model-backed steps (see "Environment variables" below)
 
-Note that our benchmark is fully automated and refreshable. For example, we can simply run the following script to retrieve the latest papers from May 2024 to December 2024 and evaluate frontier models on them.
-
-```bash
-#!/bin/bash
-# BeyondMemorization
-
-A research codebase used to retrieve arXiv papers, extract LaTeX and theorems, synthesize
-high-quality question–answer (QA) pairs from theorems, and evaluate language models on
-those QA tasks.
-
-This repository contains the pipeline and utilities for the project "Beyond Memorization: Reasoning-Driven
-Synthesis as a Mitigation Strategy Against Benchmark Contamination". Add paper / dataset links here.
-
-## Highlights
-
-- Month-by-month pipeline that fetches arXiv papers, extracts LaTeX, finds theorems, and synthesizes QA pairs.
-- QA generation enforces strict rules (LaTeX formatting, unique answers) to produce renderable, verifiable items.
-- Evaluation tools to compare LLMs (OpenAI / OpenRouter / Anthropic) on the generated QA benchmark.
-
-## Repository layout
-
-Top-level files and folders you'll use most often:
-
-- `monthly_qa_pipeline.py` — orchestrates month-wise retrieval → extraction → theorem extraction → QA generation.
-- `helpers/` — pipeline steps and prompt definitions:
-  - `arxiv_retriever.py` — fetch papers from arXiv
-  - `extract_latex_text.py` — extract and normalize LaTeX source
-  - `extract_theorems.py` — extract theorems and contextual information
-  - `generate_qa.py` — LLM-driven QA synthesis from theorems
-  - `prompts.py` — system/user prompts used by the LLMs
-- `eval.py` — evaluate LLMs on the QA dataset and produce metrics / logs
-- `datacollate.py` — collate per-month outputs into a structured `data/` tree
-- `count_qa_pairs.py` — utility to count and summarize QA pairs across outputs
-- `requirements.txt` — Python dependencies for the project
-
-Auxiliary folders in this repo include evaluation logs and archived results in
-`MainResults-EvalLogMonthlyQA/` and experimental notebooks in `ValidationExp*`.
-
-## Quick start (development / evaluation)
-
-Prerequisites
-
-- Python 3.10+ (code comments reference 3.12; either should be fine). Use a virtual environment.
-- A LaTeX engine (e.g. TeX Live / MikTeX) installed locally if you plan to render LaTeX examples.
-- API keys for model providers you plan to use (OpenRouter / OpenAI / Anthropic).
-
-Install dependencies
-
-PowerShell (Windows):
+Install dependencies (PowerShell example):
 
 ```powershell
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
@@ -82,80 +39,181 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-Basic pipeline example
+-------------------------------------------------------------------------------
 
-1) Generate month-wise QA pairs (creates `output/<category>/<topic>/YYYY/MM/` folders):
+## 1) Main experiment — month-wise QA synthesis and evaluation
 
-```powershell
-python monthly_qa_pipeline.py --year 2024 --start 5 --end 12 --categories math,cs --papers-step 100
+Purpose: retrieve arXiv papers, extract LaTeX/theorems, synthesize QA pairs from theorems, and evaluate LLMs.
+
+Top-level orchestration and important files
+
+- `monthly_qa_pipeline.py` — main driver. For each (category, month) it:
+  1. downloads papers with `helpers/arxiv_retriever.py`
+  2. extracts LaTeX with `helpers/extract_latex_text.py`
+  3. finds theorems using `helpers/extract_theorems.py`
+  4. generates QA pairs via `helpers/generate_qa.py`
+
+- `datacollate.py` — collates `output/.../qa_pairs` into a central `data/` directory.
+- `count_qa_pairs.py` — counts QA pairs across `output/` and reports token-size issues.
+- `eval.py` — evaluation harness that supports OpenAI / OpenRouter / Anthropic backends.
+
+Folder layout (for a single topic/month):
+
+```
+output/<main_cat>/<topic>/<YYYY>/<MM>/
+  papers/        # fetched papers (datasets saved to disk)
+  latex/         # extracted LaTeX files and normalized text
+  theorems/      # extracted theorem dataset
+  qa_pairs/      # generated QA pairs (HF dataset saved to disk)
+  monthly_qa_pipeline.log
+  qa_generate.log
 ```
 
-2) Collate produced QA pairs into a central `data/` directory:
+Quick run (small smoke test — PowerShell):
 
 ```powershell
+# Run a one-month job for math
+python monthly_qa_pipeline.py --year 2024 --start 5 --end 5 --categories math --papers-step 50
+
+# Collate produced QA pairs
 python datacollate.py --input output --output data
-```
 
-3) Count QA pairs and inspect token sizes:
-
-```powershell
+# Count and inspect
 python count_qa_pairs.py --input output --json_out qa_count.json --show_exceed_tokens True
-```
 
-4) Run evaluation on a dataset (example):
-
-```powershell
+# Evaluate on collated data
 python eval.py --dataset data --output results --model o4-mini
 ```
 
-Note: read each script's top docstring / --help for exact flags.
+Notes and tips
 
-## Environment variables / API keys
+- Logs: per-month logs (e.g., `monthly_qa_pipeline.log`, `qa_generate.log`) live in the corresponding
+  `output/.../<YYYY>/<MM>/` folder. Inspect them for failures or model API errors.
+- Prompts and rules: see `helpers/prompts.py` — QA generation enforces LaTeX formatting and unique answers.
+- Reproducibility: use the included `uv.lock` (or recreate a venv) to pin dependencies.
 
-Set required API keys before running LLM-backed steps. The code uses `python-dotenv` to load a `.env` file
-if present.
+-------------------------------------------------------------------------------
 
-- `OPENROUTER_API_KEY` — commonly used as the OpenRouter API key (also used as an OpenAI backend in code)
-- `OPENAI_API_KEY` — optional, direct OpenAI SDK
-- `ANTHROPIC_API_KEY` — optional, for Claude models
+## 2) Validation experiment 1 — CLOZE using abstracts
 
-Example `.env` (DO NOT commit this file):
+Purpose: generate and evaluate cloze-style (fill-in-the-blank) questions derived from paper abstracts.
 
-```text
-OPENROUTER_API_KEY=sk-...
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=claude-...
+Location: `ValidationExp1-CLOZEusingAbstracts/`
+
+Key files and contents
+
+- `generate_and_evaluate_cloze_abstracts.py` — main script that builds cloze items from abstracts, optionally
+  synthesizes candidate cloze questions, and runs evaluation routines against models.
+- `pyproject.toml` and `uv.lock` — local project metadata and lockfile for reproducibility in this experiment folder.
+- `CLOZEonRealMathPapers/` — dataset and evaluation artifacts (examples in `realmath_abstracts_with_cloze.json`,
+  processed files, and model evaluation JSON outputs such as `evaluation_gpt4omini_results.json`).
+
+How the experiment works (high-level)
+
+1. Load abstracts dataset (the repo includes a processed sample in `CLOZEonRealMathPapers/`).
+2. Create cloze prompts by masking a target token/phrase from the abstract.
+3. Query models (via `eval.py` or a small wrapper) to predict the masked span.
+4. Compute exact-match / edit-distance metrics and save results in the `CLOZEonRealMathPapers/` directory.
+
+Run example (local test):
+
+```powershell
+python ValidationExp1-CLOZEusingAbstracts/generate_and_evaluate_cloze_abstracts.py --input ValidationExp1-CLOZEusingAbstracts/CLOZEonRealMathPapers/realmath_abstracts_with_cloze.json --output ValidationExp1-CLOZEusingAbstracts/CLOZEonRealMathPapers/results
 ```
 
-Security note: never commit secrets to git. Use a credentials manager for production.
+Outputs and artifacts
 
-## Data layout and conventions
+- `*_results.json` and `*_scores.json` files in `CLOZEonRealMathPapers/` record per-model outputs and aggregated scores.
+- Notebooks in `ValidationExp1-CLOZEusingAbstracts/` demonstrate analysis and reproduction of reported metrics.
 
-- `output/<main_cat>/<subcat or topic>/<YYYY>/<MM>/papers` — saved dataset of fetched papers
-- `output/.../<YYYY>/<MM>/qa_pairs` — HF dataset of generated QA pairs for that month/topic
-- `data/<main_cat>/<YYYY>/<MM>/qa_pairs` — collated dataset produced by `datacollate.py`
+Notes
 
-Helpers like `count_qa_pairs.py` and `datacollate.py` assume this folder layout.
+- This validation is intentionally narrower than the main experiment and uses smaller inputs to make
+  rapid iteration and manual checking feasible for reviewers.
 
-## Important implementation notes
+-------------------------------------------------------------------------------
 
-- Theorem extraction (`helpers/extract_theorems.py`) uses heuristics and regex to find theorem-like environments
-  and attempts to preserve context and numbering. It also contains logic to standardize LaTeX so examples
-  can be rendered.
+## 3) Validation experiment 2 — Perturbed LiveCodeBench
 
-- QA generation (`helpers/generate_qa.py`) uses an LLM client and strict prompts (in `helpers/prompts.py`) to
-  require LaTeX-formatted question and unique-answer outputs. The generator supports synchronous and
-  asynchronous clients and contains retry logic.
+Purpose: evaluate the effect of controlled perturbations and transformations applied to LiveCodeBench examples,
+measuring robustness and generalization of model reasoning on transformed code problems.
 
-- Evaluation (`eval.py`) supports multiple backends (OpenAI/OpenRouter/Anthropic) and provides both
-  synchronous and asynchronous querying utilities.
+Location: `ValidationExp2-PerturbedLiveCodeBench/`
 
-## Troubleshooting & tips
+Key files and contents
 
-- If a model call fails, confirm your API key environment variables and that the corresponding SDK is installed.
-- Logs: pipelines and per-month runs append logs to the `output/...` folder (e.g. `qa_generate.log`,
-  `monthly_qa_pipeline.log`) — inspect them for detailed failures.
-- Prompt tuning: the QA generation is prompt-sensitive. If you modify prompts in `helpers/prompts.py`, run a
-  small sample before re-generating a large batch.
+- `livecodebench.py` — core code for loading LiveCodeBench problems and applying perturbations/transformations.
+- `analysis.py` — analysis scripts that compute metrics, aggregate results and produce the tables used in the paper.
+- `plotting.py` — utilities to produce the figures used in the manuscript.
+- `livecodebench-analysis.ipynb` and `livecodebench-final.ipynb` — interactive notebooks with the full analysis and plots.
+
+How to run (example)
+
+```powershell
+# Run a transformation + evaluation pipeline on a small subset
+python ValidationExp2-PerturbedLiveCodeBench/livecodebench.py --input ValidationExp2-PerturbedLiveCodeBench/sample_problems.json --output ValidationExp2-PerturbedLiveCodeBench/results --perturbation-type rename_vars
+
+# Run analysis and create summary CSV/plots
+python ValidationExp2-PerturbedLiveCodeBench/analysis.py --results ValidationExp2-PerturbedLiveCodeBench/results --out stats.csv
+python ValidationExp2-PerturbedLiveCodeBench/plotting.py --stats stats.csv --out plots/
+```
+
+Outputs and artifacts
+
+- `results/` — per-run model outputs on transformed problems
+- `stats.csv` / `plots/` — aggregated metrics and visualization artifacts
+- Notebooks provide reproducible steps to regenerate all figures and tables.
+
+Notes
+
+- Perturbations may require deterministic random seeds to be reproducible; check the script flags and set
+  `--seed` where available.
+
+-------------------------------------------------------------------------------
+
+## Environment variables and secrets
+
+The repository uses `python-dotenv` to load a `.env` file if present. Common variables:
+
+- `OPENROUTER_API_KEY` — OpenRouter / OpenAI backend key used across scripts
+- `OPENAI_API_KEY` — optional direct OpenAI SDK key
+- `ANTHROPIC_API_KEY` — optional Anthropic key for Claude models
+
+Example (POSIX):
+
+```bash
+export OPENROUTER_API_KEY="your-openrouter-key"
+export OPENAI_API_KEY="your-openai-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"
+```
+
+PowerShell (Windows):
+
+```powershell
+$env:OPENROUTER_API_KEY = "your-openrouter-key"
+$env:OPENAI_API_KEY     = "your-openai-key"
+$env:ANTHROPIC_API_KEY  = "your-anthropic-key"
+```
+
+Security: do not commit keys or `.env` files to the repository. Use a secrets manager for long runs.
+
+-------------------------------------------------------------------------------
+
+## Reproducibility and package management
+
+- The repo includes `pyproject.toml` and an optional `uv.lock` to pin dependencies. We recommend using
+  `uv` to restore a reproducible environment if available; otherwise use `pip` in a venv and the provided
+  `requirements.txt`.
+
+## Contact and citation
+
+If you use this code or dataset, please cite the associated paper (add arXiv / bibtex here). For questions
+about reproducing experiments, open an issue or contact the authors via the paper contact details.
+
+---
+
+If you'd like, I can (A) add runnable example inputs under `examples/` for each experiment so reviewers can
+run a fast, local smoke test without API calls, or (B) generate short per-script `--help` usage snippets
+collected into a `helpers/README.md`. Which would you prefer?
   
 
