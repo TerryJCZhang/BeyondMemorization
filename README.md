@@ -13,7 +13,6 @@
 - 3) Validation experiment 2 — Perturbed LiveCodeBench
 - Environment variables
 - Package management
-- Top-level files and folders
 
 ---
 
@@ -169,18 +168,6 @@ Keep keys out of source control.
 
 This repo includes `pyproject.toml` and `uv.lock`. If you use `uv`, restore from the lockfile. Otherwise create a
 virtualenv and install `requirements.txt`.
-
----
-
-## Top-level files and folders
-
-- `commands.sh` — convenience script(s) used for quick local tasks and ad-hoc commands.
-- `requirements.txt` — pip-installable dependencies used for development and experiments.
-- `pyproject.toml`, `uv.lock` — optional tooling and lockfile for reproducible installs.
-- `helpers/` — helper modules for retrieval, parsing, QA generation and prompts.
-- `Main Experiments/` — supporting scripts and notebooks related to large-scale monthly runs.
-- `ValidationExp1-CLOZEusingAbstracts/` — CLOZE validation scripts, sample inputs and notebooks.
-- `ValidationExp2-PerturbedLiveCodeBench/` — LiveCodeBench perturbation and analysis code and notebooks.
 
 ---
 
