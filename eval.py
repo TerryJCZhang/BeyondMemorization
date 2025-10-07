@@ -5,8 +5,8 @@ This script evaluates the performance of Language Models (LLMs) on scientific
 question-answering tasks using a dataset generated from scientific papers.
 
 The script:
-1. Loads a scientific QA dataset (containing questions, context, and ground truth answers)
-2. For each question, prompts an LLM to solve it using the provided context
+1. Loads a scientific QA dataset (containing questions, and ground truth answers)
+2. For each question, prompts an LLM to solve it
 3. Evaluates the correctness of the LLM's answer against the ground truth
 4. Generates detailed metrics on the model's performance
 
