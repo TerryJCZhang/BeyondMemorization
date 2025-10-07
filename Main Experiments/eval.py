@@ -17,7 +17,7 @@ The script supports accessing models through:
 
 Usage:
   # Evaluate a model
-  python eval_math.py --dataset path/to/your/qa_data --output path/to/save/results --model <model_name> [--sample <n>] [--verbose]
+  python eval.py --dataset path/to/your/qa_data --output path/to/save/results --model <model_name> [--verbose]
 
 Dependencies:
   - datasets (for loading the dataset)
@@ -173,14 +173,12 @@ class QAEvaluator:
                 base_url="https://openrouter.ai/api/v1", api_key=self.openrouter_api_key
             )
 
-    def load_dataset(self, dataset_path, sample_size=None, subset=None):
+    def load_dataset(self, dataset_path):
         """
         Load the scientific QA dataset.
 
         Args:
             dataset_path (str): Path to the dataset or Hugging Face dataset ID.
-            sample_size (int, optional): Number of samples to use. Defaults to None (use entire dataset).
-                                        If set to 0, will use the entire dataset.
 
         Returns:
             dataset: The loaded dataset.
@@ -1492,11 +1490,6 @@ def main():
         ),
     )
     parser.add_argument(
-        "--sample",
-        type=int,
-        help="Number of random samples to evaluate from the dataset",
-    )
-    parser.add_argument(
         "--output",
         type=str,
         default="eval_results/",
@@ -1581,7 +1574,7 @@ def main():
             else:
                 console.print("[green]Mode: Using provided context[/green]")
 
-            dataset = evaluator.load_dataset(qa_dir, sample_size=args.sample)
+            dataset = evaluator.load_dataset(qa_dir)
             if dataset is None or len(dataset) == 0:
                 console.print(f"[yellow]Skipping empty or invalid dataset: {qa_dir}[/yellow]")
                 continue
@@ -1628,5 +1621,5 @@ if __name__ == "__main__":
     main()
 
 '''
-python eval_math.py --dataset data --output eval_results --model deepseek-r1
+python eval.py --dataset data --output eval_results --model deepseek-r1
 '''

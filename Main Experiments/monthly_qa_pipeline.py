@@ -12,9 +12,6 @@ PYTHON = os.environ.get("PYTHON") if os.environ.get("PYTHON") else "python"
 
 
 SUBCATEGORY_EXPANSIONS = {
-    "cs": [
-        "cs.CC", "cs.CR", "cs.IT", "cs.LG", "cs.SC"
-    ],
     "physics": [
         "gr-qc", "math-ph", "nlin.SI", "physics.comp-ph", "physics.flu-dyn"
     ]
@@ -162,7 +159,7 @@ def main():
     ap.add_argument("--end",   type=int, default=12, help="end month (1-12)")
     ap.add_argument('-c', '--categories', type=str, default='math', 
                         help='List of arXiv categories to search (default: None). Can only be a main category with subcategories (e.g., cs, math)')
-    ap.add_argument('-sc', "--subcategories", type=str, default='cs, physics',
+    ap.add_argument('-sc', "--subcategories", type=str, default='physics',
                         help="List of specific subcategories to search (e.g., cs.IT, math.AG).")
     ap.add_argument("--output_root", type=str, default='output', help='Output directory for the dataset')
     ap.add_argument("--papers-step", type=int, default=100,
@@ -201,7 +198,7 @@ python monthly_qa_pipeline.py \
   --start 1 \
   --end 3 \
   --categories cs,math \
-  --subcategories cs.CL,math.AG \
+  --subcategories math-ph,math.AG \
   --output_root output \
   --papers-step 100
 """
