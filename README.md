@@ -139,6 +139,64 @@ Outputs
 
 ---
 
+## Reproducibility — quick guide
+
+If you want to run the experiments or inspect outputs quickly, the steps below reproduce the main pipeline and evaluation used for the paper.
+
+### What we share
+- A small subset of the generated QA dataset is included with the submission (six QA pairs per month). The full generated set will be published on Hugging Face after review. The released subset (CC-BY 4.0) contains 1,643 QA pairs (856 math, 787 physics). No personal data or offensive content is included.
+- The supplementary materials include the code, prompt templates, and evaluation logs used for the reported runs.
+
+### Quick reproduction steps
+1. Create an environment and install dependencies:
+
+```bash
+# POSIX
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Windows (PowerShell)
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+2. Provide API credentials (if running model-backed steps). The code reads a local `.env` file or environment variables. Common variables:
+
+```text
+OPENROUTER_API_KEY  # OpenRouter / OpenAI backend key
+OPENAI_API_KEY      # Optional: direct OpenAI SDK key
+```
+
+3. Run a short, month-local pipeline (smoke test):
+
+```powershell
+python monthly_qa_pipeline.py --year 2024 --start 5 --end 5 --categories math --papers-step 50
+```
+
+Check the month folder (e.g. `output/math/.../2024/05/`) for `papers/`, `theorems/`, and `qa_pairs/`.
+
+4. Collate and summarize outputs:
+
+```powershell
+python datacollate.py --input output --output data
+python count_qa_pairs.py --input output --json_out qa_count.json
+```
+
+5. Run evaluation on the collated dataset:
+
+```powershell
+python eval.py --dataset data --output results --model o4-mini
+```
+
+### Notes
+- Generation enforces LaTeX-ready formatting and unique-answer constraints; see `helpers/prompts.py` for exact templates.
+- Large-scale runs use external model APIs and may incur costs; include small local examples if sharing runnable snapshots with reviewers.
+- For full reproduction details (flags, logging paths, per-experiment notebooks) see the repository `README.md` and the notebooks in the `ValidationExp*` folders.
+
+---
+
 ## Environment variables
 
 The code reads a local `.env` file if present. The scripts commonly use:
