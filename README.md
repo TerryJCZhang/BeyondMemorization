@@ -13,22 +13,20 @@
 - 3) Validation experiment 2 — Perturbed LiveCodeBench
 - Environment variables
 - Package management
-- Archive: MainResults-EvalLogMonthlyQA
+- Top-level files and folders
 
 ---
 
 ## Overview
 
-This repository contains three separate parts. Each part has the scripts, data and notebooks used for the
-corresponding experiments.
+This repository contains three related experiments. Each experiment includes the scripts, datasets and notebooks
+used to reproduce the results or to run follow-up analyses.
 
-- Main experiment: fetch arXiv papers, extract LaTeX/theorems, synthesize LaTeX-formatted question/answer pairs,
-  and evaluate models on the generated QA pairs.
-- Validation 1 (CLOZE): create fill-in-the-blank questions from paper abstracts and evaluate model predictions.
-- Validation 2 (Perturbed LiveCodeBench): apply small, controlled transformations to code problems and measure
-  how model outputs change.
+- Main experiment: download arXiv papers, extract theorem-like content from LaTeX, generate LaTeX-formatted question/answer pairs, and run evaluations on the resulting datasets.
+- Validation 1 (CLOZE): produce fill-in-the-blank items from abstracts and measure model predictions.
+- Validation 2 (Perturbed LiveCodeBench): apply small code transformations and compare model behavior on original vs transformed problems.
 
-The sections below list the main scripts, where outputs are stored, and a few example commands.
+The sections below point to the main scripts, where outputs are written, and a few example commands you can use to get started.
 
 ---
 
@@ -42,14 +40,15 @@ evaluation harness.
 
 Main scripts and helpers
 
-- `monthly_qa_pipeline.py` — run the end-to-end monthly pipeline.
-- `helpers/arxiv_retriever.py` — download paper metadata and source.
-- `helpers/extract_latex_text.py` — extract and normalize LaTeX source.
-- `helpers/extract_theorems.py` — locate theorem-like environments and extract content.
-- `helpers/generate_qa.py` — generate LaTeX-formatted QA pairs (prompts live in `helpers/prompts.py`).
-- `datacollate.py` — collect per-month QA datasets into `data/`.
-- `count_qa_pairs.py` — report counts and token-size issues.
-- `eval.py` — evaluation harness for comparing model outputs.
+- `monthly_qa_pipeline.py` — orchestrates the month/topic pipeline: download papers, extract LaTeX, detect theorem statements, generate QA pairs, and save per-month outputs.
+- `helpers/arxiv_retriever.py` — query arXiv and download paper metadata and source archives into the per-month `papers/` folder.
+- `helpers/extract_latex_text.py` — extract and normalize LaTeX source from downloaded archives, producing cleaned `.tex` fragments.
+- `helpers/extract_theorems.py` — locate theorem-like environments and extract cleaned statements with nearby context for QA generation.
+- `helpers/generate_qa.py` — assemble prompts and call the LLM client to produce LaTeX-formatted question/answer pairs from theorems.
+- `helpers/prompts.py` — prompt templates and output-format constraints used by the QA generator.
+- `datacollate.py` — merge per-month `qa_pairs` datasets into consolidated `data/` folders for evaluation.
+- `count_qa_pairs.py` — scan `output/` to count QA pairs, report per-month summaries and token-size warnings.
+- `eval.py` — evaluation harness: run model queries on datasets and save per-model outputs and scoring files.
 
 Folder layout (one topic/month)
 
@@ -173,14 +172,16 @@ virtualenv and install `requirements.txt`.
 
 ---
 
-## Archive: MainResults-EvalLogMonthlyQA
+## Top-level files and folders
 
-This folder holds archived evaluation outputs mentioned in the manuscript:
+- `commands.sh` — convenience script(s) used for quick local tasks and ad-hoc commands.
+- `requirements.txt` — pip-installable dependencies used for development and experiments.
+- `pyproject.toml`, `uv.lock` — optional tooling and lockfile for reproducible installs.
+- `helpers/` — helper modules for retrieval, parsing, QA generation and prompts.
+- `Main Experiments/` — supporting scripts and notebooks related to large-scale monthly runs.
+- `ValidationExp1-CLOZEusingAbstracts/` — CLOZE validation scripts, sample inputs and notebooks.
+- `ValidationExp2-PerturbedLiveCodeBench/` — LiveCodeBench perturbation and analysis code and notebooks.
 
-- `eval_deepseek.tar.gz` — DeepSeek-style outputs and logs
-- `eval_gemini_and_openai.tar.gz` — Gemini + OpenAI combined outputs
-- `eval_llama.tar.gz` — LLaMA-family outputs and logs
-
-Open these archives to inspect raw model outputs and run logs.
+---
 
 
