@@ -39,7 +39,7 @@ except ImportError as exc:  # pragma: no cover - surfaced to the caller on first
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
-DEFAULT_MODEL = "openai/gpt-5-mini"
+DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_FILTER_CONCURRENCY = 100
 DEFAULT_MAX_CHARS = 8000
 DEFAULT_MAX_LINES = 200
@@ -256,8 +256,8 @@ class PaperAbstract:
 # ---------------------------------------------------------------------------
 
 
-class ClozePipeline:
-    """End-to-end orchestrator for cloze question workflows."""
+class AbstractPipeline:
+    """End-to-end orchestrator for abstract extraction workflows."""
 
     def __init__(
         self,
@@ -279,7 +279,7 @@ class ClozePipeline:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OpenAI API key missing. Export OPENAI_API_KEY or pass it to ClozePipeline."
+                "OpenAI API key missing. Export OPENAI_API_KEY or pass it to AbstractPipeline."
             )
 
         self.client = openai.AsyncOpenAI(
@@ -344,7 +344,7 @@ class ClozePipeline:
                         year, month = match.groups()
                         return f"{year}-{month}-01"
         if fallback_year and fallback_month:
-            month_norm = ClozePipeline._normalize_month(fallback_month)
+            month_norm = AbstractPipeline._normalize_month(fallback_month)
             if month_norm:
                 return f"{fallback_year}-{month_norm}-01"
         if fallback_year:
@@ -431,32 +431,32 @@ class ClozePipeline:
                 continue
             end_idx = start_idx + end_match.start()
             content = full_text[start_idx:end_idx]
-            cleaned = ClozePipeline._normalize_abstract(content)
+            cleaned = AbstractPipeline._normalize_abstract(content)
             if cleaned:
                 return cleaned
             after_idx = start_idx + end_match.end()
-            trailing = ClozePipeline._capture_following_paragraph(full_text[after_idx:])
+            trailing = AbstractPipeline._capture_following_paragraph(full_text[after_idx:])
             if trailing:
-                return ClozePipeline._normalize_abstract(trailing)
+                return AbstractPipeline._normalize_abstract(trailing)
 
         cmd_pattern = re.compile(
             r"\\abstract\*?(?:\[[^\]]*\])?",
             flags=re.IGNORECASE,
         )
         for match in cmd_pattern.finditer(full_text):
-            idx = ClozePipeline._skip_whitespace(full_text, match.end())
+            idx = AbstractPipeline._skip_whitespace(full_text, match.end())
             if idx < len(full_text) and full_text[idx] == "{":
-                body, end_idx = ClozePipeline._consume_braced_block(full_text, idx)
-                cleaned = ClozePipeline._normalize_abstract(body)
+                body, end_idx = AbstractPipeline._consume_braced_block(full_text, idx)
+                cleaned = AbstractPipeline._normalize_abstract(body)
                 if cleaned:
                     return cleaned
-                trailing = ClozePipeline._capture_following_paragraph(full_text[end_idx:])
+                trailing = AbstractPipeline._capture_following_paragraph(full_text[end_idx:])
                 if trailing:
-                    return ClozePipeline._normalize_abstract(trailing)
+                    return AbstractPipeline._normalize_abstract(trailing)
             else:
-                trailing = ClozePipeline._capture_following_paragraph(full_text[idx:])
+                trailing = AbstractPipeline._capture_following_paragraph(full_text[idx:])
                 if trailing:
-                    return ClozePipeline._normalize_abstract(trailing)
+                    return AbstractPipeline._normalize_abstract(trailing)
 
         for env in ("quotation", "quote"):
             pattern = re.compile(
@@ -480,7 +480,7 @@ class ClozePipeline:
                     flags=re.IGNORECASE | re.DOTALL,
                 )
                 abstract_text = split_pattern.split(abstract_text, maxsplit=1)[0]
-                cleaned = ClozePipeline._normalize_abstract(abstract_text)
+                cleaned = AbstractPipeline._normalize_abstract(abstract_text)
                 if cleaned:
                     return cleaned
 
@@ -490,9 +490,9 @@ class ClozePipeline:
         )
         label_match = label_pattern.search(full_text)
         if label_match:
-            following = ClozePipeline._capture_following_paragraph(full_text[label_match.end():])
+            following = AbstractPipeline._capture_following_paragraph(full_text[label_match.end():])
             if following:
-                return ClozePipeline._normalize_abstract(following)
+                return AbstractPipeline._normalize_abstract(following)
 
         return ""
 
@@ -894,10 +894,10 @@ class ClozePipeline:
 # ------------------------------------------------------------------
 
 
-def build_pipeline(**kwargs: Any) -> ClozePipeline:
-    """Factory helper that mirrors the ClozePipeline constructor."""
+def build_pipeline(**kwargs: Any) -> AbstractPipeline:
+    """Factory helper that mirrors the AbstractPipeline constructor."""
 
-    return ClozePipeline(**kwargs)
+    return AbstractPipeline(**kwargs)
 
 
 if __name__ == "__main__":
