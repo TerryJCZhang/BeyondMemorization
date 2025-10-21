@@ -8,8 +8,8 @@
 ## Table of contents
 
 - Overview
-- 1) Main experiment — month-by-month QA synthesis and evaluation
-- 2) Validation experiment 1 — CLOZE using abstracts
+- 1) Main experiment — month-by-month QA synthesis and evaluation of selected models
+- 2) Validation experiment 1 — CLOZE QA based on paper abstracts
 - 3) Validation experiment 2 — Perturbed LiveCodeBench
 - Environment variables
 - Package management
@@ -189,12 +189,6 @@ python count_qa_pairs.py --input output --json_out qa_count.json
 ```powershell
 python eval.py --dataset data --output results --model o4-mini
 ```
-
-### Notes
-- Generation enforces LaTeX-ready formatting and unique-answer constraints; see `helpers/prompts.py` for exact templates.
-- Large-scale runs use external model APIs and may incur costs; include small local examples if sharing runnable snapshots with reviewers.
-- For full reproduction details (flags, logging paths, per-experiment notebooks) see the repository `README.md` and the notebooks in the `ValidationExp*` folders.
-
 ---
 
 ## Environment variables
