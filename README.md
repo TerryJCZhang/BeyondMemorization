@@ -218,8 +218,40 @@ Keep keys out of source control.
 
 ## Package management
 
-This repo includes `pyproject.toml` and `uv.lock`. If you use `uv`, restore from the lockfile. Otherwise create a
-virtualenv and install `requirements.txt`.
+This repository uses a unified environment configuration managed through `pyproject.toml` and `uv.lock` at the root level.
+
+### Setup with uv (recommended)
+
+```powershell
+# Install dependencies
+uv sync
+
+# Activate the virtual environment
+.venv\Scripts\activate
+```
+
+### Setup with pip
+
+```powershell
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate
+
+# Install dependencies
+pip install -e .
+```
+
+### Development dependencies
+
+```powershell
+# Install with dev dependencies
+uv sync --all-extras
+
+# Or with pip
+pip install -e ".[dev]"
+```
+
+All subprojects (MainExp, ValidationExp1, ValidationExp2) use the same unified environment from the root `pyproject.toml`.
 
 ---
 

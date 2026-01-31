@@ -1,7 +1,22 @@
-1. Set up your API key: export OPENAI_API_KEY="your-actual-api-key-here"
-2. cd to this folder and run the code: 
+1. From the repository root, set up the unified environment:
+
+```powershell
+uv sync
+.venv\Scripts\activate
+```
+
+2. Set up your API key:
+
+```powershell
+$env:OPENAI_API_KEY = "your-actual-api-key-here"
+```
+
+3. cd to this folder and run the code:
+
+```powershell
 python livecodebench.py
-python analysis.py 
+python analysis.py
 python plotting.py
+```
 
 Remark: livecodebench-final.ipynb is the same as the python code, and livecodebench-analysis.ipynb contains older code that is not used in the final version, but for exploratory purposes.

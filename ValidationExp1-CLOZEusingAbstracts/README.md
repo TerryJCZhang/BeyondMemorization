@@ -214,29 +214,39 @@ Modify these in [generate_and_evaluate_cloze_abstracts.py](generate_and_evaluate
 
 ## Environment Setup
 
-This project uses UV for Python dependency management:
+This project uses the unified environment configuration from the root repository:
 
-```bash
-# Create virtual environment
-uv venv
+```powershell
+# From the repository root directory
+cd ..
 
-# Activate it
-source .venv/bin/activate  # Linux/Mac
-.venv\Scripts\activate     # Windows
-
-# Install dependencies
+# Install dependencies using uv (recommended)
 uv sync
 
+# Activate the virtual environment
+.venv\Scripts\activate
+
+# Return to this directory
+cd ValidationExp1-CLOZEusingAbstracts
+
 # Run scripts
-uv run script_name.py
+python generateCLOZE.py
+python evaluateCLOZE.py
+```
+
+Alternatively, with pip from the root:
+```powershell
+cd ..
+pip install -e .
+cd ValidationExp1-CLOZEusingAbstracts
 ```
 
 ## API Keys Required
 
 Set environment variables:
-```bash
-export OPENAI_API_KEY="sk-..."
-export OPENROUTER_API_KEY="sk-..."
+```powershell
+$env:OPENAI_API_KEY = "sk-..."
+$env:OPENROUTER_API_KEY = "sk-..."
 ```
 
 ## Project Structure
