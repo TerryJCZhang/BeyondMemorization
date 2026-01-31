@@ -1,10 +1,17 @@
 [project]
-name = "abstractclozeonrealmath"
-version = "0.1.0"
-description = "Add your description here"
-requires-python = ">=3.13"
+name = "clozeonresearchpapers"
+version = "0.2.0"
+description = "Generate and evaluate CLOZE questions from any section of research papers with customizable prompts and comprehensive metrics"
+requires-python = ">=3.10"
 dependencies = [
     "aiohttp>=3.12.15",
+    "datasets>=4.3.0",
     "openai>=2.0.0",
     "rouge-score>=0.1.2",
+    "nltk>=3.8",
+    "tqdm>=4.65.0",
 ]
+
+[project.scripts]
+generate-cloze = "generateCLOZE:main"
+evaluate-cloze = "evaluateCLOZE:main"

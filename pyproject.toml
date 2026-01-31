@@ -1,0 +1,9 @@
+[project]
+name = "beyondmemorization"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=2.8.0",
+    "rouge-score>=0.1.2",
+]
