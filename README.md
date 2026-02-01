@@ -2,7 +2,7 @@
 
 <div align="center">
 
-#### [📄 Paper](https://arxiv.org/)  |  [🤗 Data (Hugging Face)](https://huggingface.co/)
+#### [📄 Paper](https://arxiv.org/)
 </div>
 
 ## Overview
